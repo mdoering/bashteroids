@@ -240,19 +240,13 @@ final class GameScene: SKScene {
         scoreLabels.removeAll()
         hudLayer.removeAllChildren()
 
-        let count = ControllerManager.maxPlayers
-        for i in 0..<count {
-            let label = SKLabelNode(text: "P\(i + 1)  --")
+        for i in 0..<manager.slots.count {
+            let label = SKLabelNode(text: "")
             label.fontName = "AvenirNext-Bold"
             label.fontSize = 16
             label.horizontalAlignmentMode = .center
             label.verticalAlignmentMode = .center
-
-            let claimed = i < manager.slots.count
-            label.fontColor = claimed
-                ? manager.slots[i].color
-                : SKColor(white: 0.20, alpha: 1)
-
+            label.fontColor = manager.slots[i].color
             hudLayer.addChild(label)
             scoreLabels.append(label)
         }
