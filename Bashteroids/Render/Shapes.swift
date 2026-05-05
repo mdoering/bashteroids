@@ -163,6 +163,36 @@ enum Shapes {
         return container
     }
 
+    static func alienMonster() -> SKShapeNode {
+        let path = CGMutablePath()
+
+        // Lower hull
+        path.move(to:    CGPoint(x: -16, y:  0))
+        path.addLine(to: CGPoint(x:  -8, y: -6))
+        path.addLine(to: CGPoint(x:   8, y: -6))
+        path.addLine(to: CGPoint(x:  16, y:  0))
+        path.addLine(to: CGPoint(x: -16, y:  0))
+
+        // Upper dome
+        path.move(to:    CGPoint(x: -10, y: 0))
+        path.addLine(to: CGPoint(x:  -6, y: 6))
+        path.addLine(to: CGPoint(x:   6, y: 6))
+        path.addLine(to: CGPoint(x:  10, y: 0))
+
+        // Downward spikes
+        for xPos: CGFloat in [-10, -4, 4, 10] {
+            path.move(to:    CGPoint(x: xPos, y: -6))
+            path.addLine(to: CGPoint(x: xPos, y: -13))
+        }
+
+        let node = SKShapeNode(path: path)
+        node.strokeColor = SKColor(red: 0.8, green: 0.3, blue: 1.0, alpha: 1)
+        node.fillColor   = .clear
+        node.lineWidth   = 1.5
+        node.isAntialiased = true
+        return node
+    }
+
     // Edge glow: a rectangular bar laid along one screen side. Returned at
     // alpha 0; caller fades it in over the warning duration. Position is
     // anchored so the bar sits along the named edge of a frame `bounds`.

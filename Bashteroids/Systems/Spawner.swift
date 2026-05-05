@@ -3,6 +3,7 @@ import SpriteKit
 enum SpawnKind {
     case asteroid(radius: CGFloat, seed: UInt64)
     case ufo(baseHeading: CGFloat, seed: UInt64)
+    case alienMonster(baseHeading: CGFloat, seed: UInt64)
     case powerUp(kind: PowerUpKind, speed: CGFloat)
     case mine
 }
@@ -35,6 +36,7 @@ final class Spawner {
     private enum PendingKind {
         case asteroid(radius: CGFloat, speed: CGFloat, seed: UInt64)
         case ufo(seed: UInt64)
+        case alien(seed: UInt64)
         case powerUp(kind: PowerUpKind)
         case mine
     }
@@ -98,6 +100,9 @@ final class Spawner {
                 kind: .mine
             ))
             return
+        } else if rollAlien() {
+            pendingKind = .alien(seed: rng.next())
+            glowColor = SKColor(red: 0.8, green: 0.3, blue: 1.0, alpha: 1)
         } else if rollUFO() {
             pendingKind = .ufo(seed: rng.next())
             glowColor = SKColor(red: 1.0, green: 0.4, blue: 0.4, alpha: 1)
@@ -146,6 +151,12 @@ final class Spawner {
         return Double(rng.cgFloat(in: 0...1)) < chance
     }
 
+    private func rollAlien() -> Bool {
+        guard elapsed > 120 else { return false }
+        let chance = min(0.25, Double((CGFloat(elapsed) - 120) / 60 * 0.25))
+        return Double(rng.cgFloat(in: 0...1)) < chance
+    }
+
     // MARK: - Spawn assembly
 
     private func makeSpawn(from p: Pending) -> Spawn {
@@ -175,6 +186,13 @@ final class Spawner {
             return Spawn(kind: .powerUp(kind: kind, speed: speed),
                          position: position,
                          velocity: velocity,
+                         side: p.side)
+
+        case .alien(let seed):
+            let heading = inwardAngle + rng.cgFloat(in: -0.4...0.4)
+            return Spawn(kind: .alienMonster(baseHeading: heading, seed: seed),
+                         position: position,
+                         velocity: .zero,
                          side: p.side)
 
         case .mine:

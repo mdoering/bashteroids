@@ -4,6 +4,7 @@ enum Collision {
     static func resolve(ships: [Ship],
                         asteroids: [Asteroid],
                         ufos: [UFO],
+                        alienMonsters: [AlienMonster],
                         bullets: [Bullet],
                         powerUps: [PowerUp]) {
 
@@ -14,6 +15,10 @@ enum Collision {
             if !ship.alive { continue }
             for ufo in ufos where ufo.alive {
                 if overlap(ship, ufo) { hitShip(ship); break }
+            }
+            if !ship.alive { continue }
+            for alien in alienMonsters where alien.alive {
+                if overlap(ship, alien) { hitShip(ship); break }
             }
             if !ship.alive { continue }
             for other in ships where other !== ship && other.alive {
@@ -37,6 +42,16 @@ enum Collision {
                     bullet.alive = false
                     ufo.alive = false
                     (bullet.owner as? Ship)?.score += Score.ufo
+                    break
+                }
+            }
+            if !bullet.alive { continue }
+            for alien in alienMonsters where alien.alive {
+                if bullet.owner === alien { continue }
+                if overlap(bullet, alien) {
+                    bullet.alive = false
+                    alien.alive  = false
+                    (bullet.owner as? Ship)?.score += Score.alienMonster
                     break
                 }
             }

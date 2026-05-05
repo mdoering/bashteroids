@@ -12,6 +12,7 @@ final class GameScene: SKScene {
     private var bullets: [Bullet] = []
     private var powerUps: [PowerUp] = []
     private var mines: [Mine] = []
+    private var alienMonsters: [AlienMonster] = []
 
     private var spawner: Spawner!
     private var lastUpdateTime: TimeInterval = 0
@@ -82,6 +83,9 @@ final class GameScene: SKScene {
         for b in bullets  { b.update(dt: dt) }
         for pu in powerUps { pu.update(dt: dt) }
         for m in mines { m.update(dt: dt) }
+        for a in alienMonsters { a.update(dt: dt) }
+        Movement.stepWrapping(alienMonsters, dt: dt, bounds: bounds)
+        fireAlienMonstersIfReady()
 
         fireUFOsIfReady()
 
@@ -92,6 +96,7 @@ final class GameScene: SKScene {
         Movement.stepBounded(powerUps, dt: dt, bounds: bounds)
 
         Collision.resolve(ships: ships, asteroids: asteroids, ufos: ufos,
+                          alienMonsters: alienMonsters,
                           bullets: bullets, powerUps: powerUps)
 
         for s in ships where s.alive { s.syncVisuals() }
@@ -165,6 +170,18 @@ final class GameScene: SKScene {
         }
     }
 
+    private func fireAlienMonstersIfReady() {
+        for alien in alienMonsters where alien.fireReady {
+            guard let target = nearestShip(to: alien.position),
+                  alien.position.distance(to: target.position) < AlienMonster.shootRange
+            else { continue }
+            let bullet = alien.fire(at: target.position)
+            bullets.append(bullet)
+            addChild(bullet.node)
+            audio.playShoot()
+        }
+    }
+
     private func nearestShip(to point: CGPoint) -> Ship? {
         var best: Ship?
         var bestDist: CGFloat = .infinity
@@ -196,6 +213,10 @@ final class GameScene: SKScene {
             let mine = Mine(position: s.position)
             mines.append(mine)
             addChild(mine.node)
+        case .alienMonster(let baseHeading, let seed):
+            let alien = AlienMonster(position: s.position, baseHeading: baseHeading, seed: seed)
+            alienMonsters.append(alien)
+            addChild(alien.node)
         }
     }
 
@@ -216,6 +237,11 @@ final class GameScene: SKScene {
                 for ufo in ufos where ufo.alive {
                     if ufo.position.distance(to: dead.position) < Mine.explosionRadius {
                         ufo.alive = false
+                    }
+                }
+                for alien in alienMonsters where alien.alive {
+                    if alien.position.distance(to: dead.position) < Mine.explosionRadius {
+                        alien.alive = false
                     }
                 }
                 nearestShip(to: dead.position)?.score += 5
@@ -261,6 +287,15 @@ final class GameScene: SKScene {
         }
         powerUps.removeAll { dead in
             if !dead.alive { dead.node.removeFromParent(); return true }
+            return false
+        }
+        alienMonsters.removeAll { dead in
+            if !dead.alive {
+                Explosion.burst(at: dead.position, radius: dead.radius * 1.2, parent: self)
+                audio.playExplosion()
+                dead.node.removeFromParent()
+                return true
+            }
             return false
         }
     }
