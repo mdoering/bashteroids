@@ -10,6 +10,7 @@ final class GameScene: SKScene {
     private var asteroids: [Asteroid] = []
     private var ufos: [UFO] = []
     private var bullets: [Bullet] = []
+    private var powerUps: [PowerUp] = []
 
     private var spawner: Spawner!
     private var lastUpdateTime: TimeInterval = 0
@@ -78,6 +79,7 @@ final class GameScene: SKScene {
         for a in asteroids { a.update(dt: dt) }
         for u in ufos     { u.update(dt: dt) }
         for b in bullets  { b.update(dt: dt) }
+        for pu in powerUps { pu.update(dt: dt) }
 
         fireUFOsIfReady()
 
@@ -85,8 +87,10 @@ final class GameScene: SKScene {
         Movement.stepWrapping(asteroids, dt: dt, bounds: bounds)
         Movement.stepWrapping(ufos,     dt: dt, bounds: bounds)
         Movement.stepBounded(bullets,  dt: dt, bounds: bounds)
+        Movement.stepBounded(powerUps, dt: dt, bounds: bounds)
 
-        Collision.resolve(ships: ships, asteroids: asteroids, ufos: ufos, bullets: bullets)
+        Collision.resolve(ships: ships, asteroids: asteroids, ufos: ufos,
+                          bullets: bullets, powerUps: powerUps)
 
         for s in ships where s.alive { s.syncVisuals() }
 
@@ -182,6 +186,10 @@ final class GameScene: SKScene {
             let ufo = UFO(position: s.position, baseHeading: baseHeading, seed: seed)
             ufos.append(ufo)
             addChild(ufo.node)
+        case .powerUp(let kind, _):
+            let pu = PowerUp(kind: kind, position: s.position, velocity: s.velocity)
+            powerUps.append(pu)
+            addChild(pu.node)
         }
     }
 
@@ -218,6 +226,10 @@ final class GameScene: SKScene {
             return false
         }
         bullets.removeAll { dead in
+            if !dead.alive { dead.node.removeFromParent(); return true }
+            return false
+        }
+        powerUps.removeAll { dead in
             if !dead.alive { dead.node.removeFromParent(); return true }
             return false
         }

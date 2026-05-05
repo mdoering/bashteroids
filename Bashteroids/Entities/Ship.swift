@@ -5,6 +5,10 @@ final class Ship: Entity {
     static let maxSpeed: CGFloat = 280
     static let turnRate: CGFloat = 4.0          // rad/s at full input
     static let reloadInterval: TimeInterval = 2.0
+
+    var effectiveReloadInterval: TimeInterval {
+        hasDualCanon ? Self.reloadInterval / 1.5 : Self.reloadInterval
+    }
     static let bulletSpeed: CGFloat = 380
     static let collisionRadius: CGFloat = 10
     static let noseOffset: CGFloat = 14         // matches Shapes.shipV nose
@@ -18,6 +22,24 @@ final class Ship: Entity {
     let color: SKColor
     let reloadIndicator: SKShapeNode
     var score: Int = 0
+
+    var hasShield: Bool = false {
+        didSet {
+            if hasShield {
+                let ring = SKShapeNode(circleOfRadius: Self.collisionRadius + 6)
+                ring.name = "shieldRing"
+                ring.strokeColor = .white
+                ring.fillColor = .clear
+                ring.lineWidth = 1
+                ring.alpha = 0.4
+                node.addChild(ring)
+            } else {
+                node.childNode(withName: "shieldRing")?.removeFromParent()
+            }
+        }
+    }
+    var hasDualCanon: Bool = false
+    private var canonAlternate: Bool = false
 
     var heading: CGFloat = 0                    // radians; 0 = +X
     var turnInput: CGFloat = 0                  // -1...1, set per-frame by input
@@ -68,10 +90,19 @@ final class Ship: Entity {
 
     func fire() -> Bullet? {
         guard canFire else { return nil }
-        reloadRemaining = Self.reloadInterval
+        reloadRemaining = effectiveReloadInterval
 
-        let nose = position + CGPoint.fromAngle(heading, length: Self.noseOffset)
-        let bulletVel = velocity + CGPoint.fromAngle(heading, length: Self.bulletSpeed)
-        return Bullet(position: nose, velocity: bulletVel, owner: self, color: color)
+        if hasDualCanon {
+            canonAlternate.toggle()
+            let side: CGFloat = canonAlternate ? 1 : -1
+            let offset = CGPoint.fromAngle(heading + side * .pi / 2, length: 4)
+            let muzzle = position + CGPoint.fromAngle(heading, length: Self.noseOffset) + offset
+            let bulletVel = velocity + CGPoint.fromAngle(heading, length: Self.bulletSpeed)
+            return Bullet(position: muzzle, velocity: bulletVel, owner: self, color: color)
+        } else {
+            let nose = position + CGPoint.fromAngle(heading, length: Self.noseOffset)
+            let bulletVel = velocity + CGPoint.fromAngle(heading, length: Self.bulletSpeed)
+            return Bullet(position: nose, velocity: bulletVel, owner: self, color: color)
+        }
     }
 }

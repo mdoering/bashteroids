@@ -3,6 +3,7 @@ import SpriteKit
 enum SpawnKind {
     case asteroid(radius: CGFloat, seed: UInt64)
     case ufo(baseHeading: CGFloat, seed: UInt64)
+    case powerUp(kind: PowerUpKind, speed: CGFloat)
 }
 
 struct Spawn {
@@ -33,6 +34,7 @@ final class Spawner {
     private enum PendingKind {
         case asteroid(radius: CGFloat, speed: CGFloat, seed: UInt64)
         case ufo(seed: UInt64)
+        case powerUp(kind: PowerUpKind)
     }
 
     private var pending: [Pending] = []
@@ -80,10 +82,14 @@ final class Spawner {
     private func scheduleNext() {
         let side = ScreenSide.allCases.randomElement(using: &rng) ?? .top
 
-        let kind: PendingKind
+        let pendingKind: PendingKind
         let glowColor: SKColor
-        if rollUFO() {
-            kind = .ufo(seed: rng.next())
+        if rollPowerUp() {
+            let kind: PowerUpKind = rng.cgFloat(in: 0...1) < 0.5 ? .shield : .dualCanon
+            pendingKind = .powerUp(kind: kind)
+            glowColor = .white
+        } else if rollUFO() {
+            pendingKind = .ufo(seed: rng.next())
             glowColor = SKColor(red: 1.0, green: 0.4, blue: 0.4, alpha: 1)
         } else {
             let minSpeed = min(110, 60 + CGFloat(elapsed) / 180 * 50)
@@ -91,7 +97,7 @@ final class Spawner {
             let speed = rng.cgFloat(in: minSpeed...maxSpeed)
             let maxRadius = elapsed > 120 ? max(18, 32 - CGFloat(elapsed - 120) / 60 * 7) : 32
             let radius = rng.cgFloat(in: 18...maxRadius)
-            kind = .asteroid(radius: radius, speed: speed, seed: rng.next())
+            pendingKind = .asteroid(radius: radius, speed: speed, seed: rng.next())
             glowColor = .white
         }
 
@@ -103,7 +109,7 @@ final class Spawner {
             side: side,
             glow: glow,
             spawnAt: elapsed + Self.warningDuration,
-            kind: kind
+            kind: pendingKind
         ))
     }
 
@@ -117,6 +123,11 @@ final class Spawner {
     private func rollUFO() -> Bool {
         let chance = min(0.35, elapsed / 60.0 * 0.35)
         return Double(rng.cgFloat(in: 0...1)) < chance
+    }
+
+    private func rollPowerUp() -> Bool {
+        guard elapsed > 30 else { return false }
+        return Double(rng.cgFloat(in: 0...1)) < 0.15
     }
 
     // MARK: - Spawn assembly
@@ -139,6 +150,15 @@ final class Spawner {
             return Spawn(kind: .ufo(baseHeading: baseHeading, seed: seed),
                          position: position,
                          velocity: .zero, // UFO recomputes its own velocity
+                         side: p.side)
+
+        case .powerUp(let kind):
+            let angle = inwardAngle + rng.cgFloat(in: -0.4...0.4)
+            let speed = rng.cgFloat(in: 50...90)
+            let velocity = CGPoint.fromAngle(angle, length: speed)
+            return Spawn(kind: .powerUp(kind: kind, speed: speed),
+                         position: position,
+                         velocity: velocity,
                          side: p.side)
         }
     }

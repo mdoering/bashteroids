@@ -103,6 +103,42 @@ enum Shapes {
         return node
     }
 
+    static func powerUp(kind: PowerUpKind) -> SKShapeNode {
+        switch kind {
+        case .shield:    return shieldPowerUp()
+        case .dualCanon: return dualCanonPowerUp()
+        }
+    }
+
+    private static func shieldPowerUp() -> SKShapeNode {
+        let path = CGMutablePath()
+        let r: CGFloat = 14
+        for i in 0..<6 {
+            let a = CGFloat(i) / 6 * .pi * 2
+            let p = CGPoint(x: r * cos(a), y: r * sin(a))
+            if i == 0 { path.move(to: p) } else { path.addLine(to: p) }
+        }
+        path.closeSubpath()
+        let node = SKShapeNode(path: path)
+        node.strokeColor = SKColor(red: 0, green: 1, blue: 1, alpha: 1)
+        node.fillColor = .clear
+        node.lineWidth = 1.5
+        node.isAntialiased = true
+        return node
+    }
+
+    private static func dualCanonPowerUp() -> SKShapeNode {
+        let path = CGMutablePath()
+        path.move(to: CGPoint(x: -8, y:  3)); path.addLine(to: CGPoint(x: 8, y:  3))
+        path.move(to: CGPoint(x: -8, y: -3)); path.addLine(to: CGPoint(x: 8, y: -3))
+        let node = SKShapeNode(path: path)
+        node.strokeColor = .yellow
+        node.fillColor = .clear
+        node.lineWidth = 1.5
+        node.isAntialiased = true
+        return node
+    }
+
     // Edge glow: a rectangular bar laid along one screen side. Returned at
     // alpha 0; caller fades it in over the warning duration. Position is
     // anchored so the bar sits along the named edge of a frame `bounds`.
