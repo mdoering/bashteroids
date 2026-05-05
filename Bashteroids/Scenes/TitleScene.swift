@@ -154,7 +154,8 @@ final class TitleScene: SKScene {
     private func confirmName() {
         guard let idx = activeNameSlot else { return }
         let trimmed = nameBuffer.trimmingCharacters(in: .whitespaces)
-        let name = trimmed.isEmpty ? "P\(idx + 1)" : trimmed
+        let previous = UserDefaults.standard.string(forKey: "player_name_\(idx)") ?? "P\(idx + 1)"
+        let name = trimmed.isEmpty ? previous : trimmed
         UserDefaults.standard.set(name, forKey: "player_name_\(idx)")
         activeNameSlot = nil
         nameBuffer = ""
