@@ -25,6 +25,7 @@ final class Ship: Entity {
 
     var hasShield: Bool = false {
         didSet {
+            guard hasShield != oldValue else { return }
             if hasShield {
                 let ring = SKShapeNode(circleOfRadius: Self.collisionRadius + 6)
                 ring.name = "shieldRing"

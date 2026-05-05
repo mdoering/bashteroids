@@ -129,8 +129,8 @@ enum Shapes {
 
     private static func dualCanonPowerUp() -> SKShapeNode {
         let path = CGMutablePath()
-        path.move(to: CGPoint(x: -8, y:  3)); path.addLine(to: CGPoint(x: 8, y:  3))
-        path.move(to: CGPoint(x: -8, y: -3)); path.addLine(to: CGPoint(x: 8, y: -3))
+        path.move(to: CGPoint(x: -8, y:  2)); path.addLine(to: CGPoint(x: 8, y:  2))
+        path.move(to: CGPoint(x: -8, y: -2)); path.addLine(to: CGPoint(x: 8, y: -2))
         let node = SKShapeNode(path: path)
         node.strokeColor = .yellow
         node.fillColor = .clear
