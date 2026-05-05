@@ -342,11 +342,9 @@ final class GameScene: SKScene {
 
     private func updateHUD() {
         for (i, label) in scoreLabels.enumerated() {
-            if i < ships.count {
-                label.text = "P\(i + 1)  \(ships[i].score)"
-            } else {
-                label.text = "P\(i + 1)  --"
-            }
+            guard i < ships.count else { continue }
+            let name = UserDefaults.standard.string(forKey: "player_name_\(i)") ?? "P\(i + 1)"
+            label.text = "\(name)  \(ships[i].score)"
         }
     }
 
@@ -358,8 +356,10 @@ final class GameScene: SKScene {
         let topScore = ships.map(\.score).max() ?? 0
         HighScore.recordIfHigher(topScore)
 
-        let result: GameOverScene.Result = winner.map { .winner(color: $0.color, label: "P\($0.playerIndex + 1) WINS") }
-                                                ?? .gameOver
+        let result: GameOverScene.Result = winner.map {
+            let name = UserDefaults.standard.string(forKey: "player_name_\($0.playerIndex)") ?? "P\($0.playerIndex + 1)"
+            return .winner(color: $0.color, label: "\(name) WINS")
+        } ?? .gameOver
 
         let next = GameOverScene(size: size, result: result)
         next.scaleMode = scaleMode

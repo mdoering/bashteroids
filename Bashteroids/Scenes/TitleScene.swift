@@ -6,6 +6,10 @@ final class TitleScene: SKScene {
     private var transitioning = false
     private var menuWasPressed: [ObjectIdentifier: Bool] = [:]
     private var xWasPressed: [ObjectIdentifier: Bool] = [:]
+    private var activeNameSlot: Int? = nil
+    private var nameBuffer: String = ""
+    private var prevSlotCount: Int = 0
+    private var slotAWasPressed: [Int: Bool] = [:]
 
     override var canBecomeFirstResponder: Bool { true }
 
@@ -41,7 +45,19 @@ final class TitleScene: SKScene {
         addChild(slotsLayer)
         renderSlots()
 
-        manager.onSlotsChanged = { [weak self] in self?.renderSlots() }
+        manager.onSlotsChanged = { [weak self] in
+            guard let self else { return }
+            let newCount = self.manager.slots.count
+            if newCount > self.prevSlotCount {
+                let idx = newCount - 1
+                self.activeNameSlot = idx
+                self.nameBuffer = UserDefaults.standard.string(
+                    forKey: "player_name_\(idx)") ?? "P\(idx + 1)"
+                self.manager.setJoinEnabled(false)
+            }
+            self.prevSlotCount = newCount
+            self.renderSlots()
+        }
         manager.onStartPressed = { [weak self] in self?.tryStart() }
         manager.setJoinEnabled(true)
     }
@@ -53,7 +69,7 @@ final class TitleScene: SKScene {
     }
 
     private func tryStart() {
-        guard !transitioning, !manager.slots.isEmpty else { return }
+        guard !transitioning, !manager.slots.isEmpty, activeNameSlot == nil else { return }
         transitioning = true
         let next = GameScene(size: size)
         next.scaleMode = scaleMode
@@ -62,6 +78,27 @@ final class TitleScene: SKScene {
 
     override func update(_ currentTime: TimeInterval) {
         guard !transitioning else { return }
+
+        if activeNameSlot == nil {
+            for (i, slot) in manager.slots.enumerated() {
+                let pressed = slot.controller?.extendedGamepad?.buttonA.isPressed ?? false
+                let was = slotAWasPressed[i] ?? false
+                if pressed && !was {
+                    activeNameSlot = i
+                    nameBuffer = UserDefaults.standard.string(
+                        forKey: "player_name_\(i)") ?? "P\(i + 1)"
+                    manager.setJoinEnabled(false)
+                    renderSlots()
+                    break
+                }
+                slotAWasPressed[i] = pressed
+            }
+        } else {
+            for (i, slot) in manager.slots.enumerated() {
+                slotAWasPressed[i] = slot.controller?.extendedGamepad?.buttonA.isPressed ?? false
+            }
+        }
+
         for c in manager.connectedControllers {
             let id = ObjectIdentifier(c)
 
@@ -80,6 +117,26 @@ final class TitleScene: SKScene {
     override func pressesBegan(_ presses: Set<UIPress>, with event: UIPressesEvent?) {
         for press in presses {
             guard let key = press.key else { continue }
+
+            if activeNameSlot != nil {
+                switch key.keyCode {
+                case .keyboardReturnOrEnter:
+                    confirmName()
+                case .keyboardDeleteOrBackspace:
+                    if !nameBuffer.isEmpty { nameBuffer.removeLast(); renderSlots() }
+                default:
+                    let chars = key.characters ?? ""
+                    if chars.count == 1,
+                       let scalar = chars.unicodeScalars.first,
+                       CharacterSet.alphanumerics.union(.init(charactersIn: " ")).contains(scalar),
+                       nameBuffer.count < 8 {
+                        nameBuffer += chars.uppercased()
+                        renderSlots()
+                    }
+                }
+                return
+            }
+
             switch key.keyCode {
             case .keyboardSpacebar, .keyboardReturnOrEnter:
                 tryStart()
@@ -92,6 +149,18 @@ final class TitleScene: SKScene {
             }
         }
         super.pressesBegan(presses, with: event)
+    }
+
+    private func confirmName() {
+        guard let idx = activeNameSlot else { return }
+        let trimmed = nameBuffer.trimmingCharacters(in: .whitespaces)
+        let name = trimmed.isEmpty ? "P\(idx + 1)" : trimmed
+        UserDefaults.standard.set(name, forKey: "player_name_\(idx)")
+        activeNameSlot = nil
+        nameBuffer = ""
+        let atMax = manager.slots.count >= ControllerManager.maxPlayers
+        manager.setJoinEnabled(!atMax)
+        renderSlots()
     }
 
     private func makeIconNode() -> SKNode {
@@ -150,6 +219,24 @@ final class TitleScene: SKScene {
                 label.fontColor = color
                 label.position = CGPoint(x: x, y: y - 6)
                 slotsLayer.addChild(label)
+            }
+
+            let storedName = UserDefaults.standard.string(forKey: "player_name_\(i)") ?? "P\(i + 1)"
+            let displayText: String
+            if activeNameSlot == i {
+                displayText = nameBuffer + "_"
+            } else if claimed {
+                displayText = storedName
+            } else {
+                displayText = ""
+            }
+            if !displayText.isEmpty {
+                let nameLabel = SKLabelNode(text: displayText)
+                nameLabel.fontName = "AvenirNext-Regular"
+                nameLabel.fontSize = 14
+                nameLabel.fontColor = color
+                nameLabel.position = CGPoint(x: x, y: y - 69)
+                slotsLayer.addChild(nameLabel)
             }
         }
     }
