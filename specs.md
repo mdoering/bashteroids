@@ -8,9 +8,9 @@ Only once the engine fires the ship is moved into the new direction, still keepi
 
 The sides of the fixed game window are gates to the opposite side, so a ship can fly through the left side and immediately reappear on the right.
 
-## Items
-Apart from opponents ships there can also appear other items from the sides.
-Before any of these items appear the side should be glowing for 3 seconds to warn users.
+## Objects
+Apart from opponents ships there can also appear other objects from the sides.
+Before any of these objects appear the side should be glowing for 3 seconds to warn users.
 
 ### asteroids
 Simple asterois can appear, shaped like rocks, that keep flying a fixed trajectory - also leaving and reentering the screen on its edges.

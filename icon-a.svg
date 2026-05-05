@@ -1,0 +1,54 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200">
+  <defs>
+    <filter id="glow">
+      <feGaussianBlur in="SourceGraphic" stdDeviation="3.5" result="blur"/>
+      <feMerge>
+        <feMergeNode in="blur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+    <filter id="glow-soft">
+      <feGaussianBlur in="SourceGraphic" stdDeviation="2" result="blur"/>
+      <feMerge>
+        <feMergeNode in="blur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+  </defs>
+
+  <rect width="200" height="200" fill="#030508"/>
+
+  <!-- Stars -->
+  <g fill="#FFFFFF" opacity="0.22">
+    <circle cx="24" cy="22" r="1"/>
+    <circle cx="30" cy="168" r="0.8"/>
+    <circle cx="12" cy="95" r="0.8"/>
+    <circle cx="180" cy="170" r="1"/>
+    <circle cx="186" cy="115" r="0.7"/>
+    <circle cx="95" cy="186" r="0.8"/>
+    <circle cx="52" cy="142" r="0.7"/>
+    <circle cx="22" cy="140" r="0.6"/>
+  </g>
+
+  <!-- White asteroid (upper-right corner) -->
+  <g filter="url(#glow-soft)">
+    <polygon
+      points="30,36 40,16 60,14 78,26 80,48 66,64 40,60"
+      fill="none" stroke="#FFFFFF" stroke-width="2.5" stroke-linejoin="round"/>
+    <circle cx="58" cy="36" r="8" fill="none" stroke="#FFFFFF" stroke-width="1.5" opacity="0.45"/>
+  </g>
+
+  <!-- Red ship: left side, slightly below center, angled 8° above horizontal -->
+  <g transform="translate(55, 118) rotate(82)" filter="url(#glow)">
+    <path d="M 0 -26 L 16 13 L 6 6 L -6 6 L -16 13 Z"
+          fill="none" stroke="#FF3333" stroke-width="2.8"
+          stroke-linejoin="round" stroke-linecap="round"/>
+  </g>
+
+  <!-- Blue ship: right side, slightly above center, angled 14° above horizontal -->
+  <g transform="translate(145, 90) rotate(-76)" filter="url(#glow)">
+    <path d="M 0 -26 L 16 13 L 6 6 L -6 6 L -16 13 Z"
+          fill="none" stroke="#44AAFF" stroke-width="2.8"
+          stroke-linejoin="round" stroke-linecap="round"/>
+  </g>
+</svg>
