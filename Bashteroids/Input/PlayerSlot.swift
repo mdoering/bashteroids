@@ -51,11 +51,13 @@ final class PlayerSlot {
         }
         gp.buttonX.pressedChangedHandler = handler
         gp.rightShoulder.pressedChangedHandler = handler
+        gp.leftTrigger.pressedChangedHandler = handler
     }
 
     private func removeFireHandler() {
         guard let gp = controller?.extendedGamepad else { return }
         gp.buttonX.pressedChangedHandler = nil
         gp.rightShoulder.pressedChangedHandler = nil
+        gp.leftTrigger.pressedChangedHandler = nil
     }
 }

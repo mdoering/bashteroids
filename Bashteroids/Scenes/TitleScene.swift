@@ -5,6 +5,7 @@ final class TitleScene: SKScene {
     private let slotsLayer = SKNode()
     private var transitioning = false
     private var menuWasPressed: [ObjectIdentifier: Bool] = [:]
+    private var xWasPressed: [ObjectIdentifier: Bool] = [:]
 
     override var canBecomeFirstResponder: Bool { true }
 
@@ -33,6 +34,10 @@ final class TitleScene: SKScene {
         hi.position = CGPoint(x: size.width / 2, y: size.height * 0.08)
         addChild(hi)
 
+        let icon = makeIconNode()
+        icon.position = CGPoint(x: size.width - 80, y: size.height - 58)
+        addChild(icon)
+
         addChild(slotsLayer)
         renderSlots()
 
@@ -58,11 +63,17 @@ final class TitleScene: SKScene {
     override func update(_ currentTime: TimeInterval) {
         guard !transitioning else { return }
         for c in manager.connectedControllers {
-            let pressed = c.extendedGamepad?.buttonMenu.isPressed ?? false
             let id = ObjectIdentifier(c)
-            let was = menuWasPressed[id] ?? false
-            if pressed && !was { tryStart(); break }
-            menuWasPressed[id] = pressed
+
+            let menuPressed = c.extendedGamepad?.buttonMenu.isPressed ?? false
+            let menuWas = menuWasPressed[id] ?? false
+            if menuPressed && !menuWas { tryStart(); break }
+            menuWasPressed[id] = menuPressed
+
+            let xPressed = c.extendedGamepad?.buttonX.isPressed ?? false
+            let xWas = xWasPressed[id] ?? false
+            if xPressed && !xWas { tryStart(); break }
+            xWasPressed[id] = xPressed
         }
     }
 
@@ -81,6 +92,26 @@ final class TitleScene: SKScene {
             }
         }
         super.pressesBegan(presses, with: event)
+    }
+
+    private func makeIconNode() -> SKNode {
+        let container = SKNode()
+
+        let red = Shapes.shipV(color: ControllerManager.playerColors[0], scale: 1.2)
+        red.position = CGPoint(x: -22, y: -7)
+        red.zRotation = 0.14
+        container.addChild(red)
+
+        let blue = Shapes.shipV(color: ControllerManager.playerColors[1], scale: 1.2)
+        blue.position = CGPoint(x: 22, y: 5)
+        blue.zRotation = 2.90
+        container.addChild(blue)
+
+        let rock = Shapes.asteroid(radius: 12, seed: 42)
+        rock.position = CGPoint(x: -32, y: 34)
+        container.addChild(rock)
+
+        return container
     }
 
     private func renderSlots() {
