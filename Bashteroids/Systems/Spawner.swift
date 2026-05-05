@@ -86,8 +86,11 @@ final class Spawner {
             kind = .ufo(seed: rng.next())
             glowColor = SKColor(red: 1.0, green: 0.4, blue: 0.4, alpha: 1)
         } else {
-            let radius = rng.cgFloat(in: 18...32)
-            let speed = rng.cgFloat(in: 60...120)
+            let minSpeed = min(110, 60 + CGFloat(elapsed) / 180 * 50)
+            let maxSpeed = min(200, 120 + CGFloat(elapsed) / 180 * 80)
+            let speed = rng.cgFloat(in: minSpeed...maxSpeed)
+            let maxRadius = elapsed > 120 ? max(18, 32 - CGFloat(elapsed - 120) / 60 * 7) : 32
+            let radius = rng.cgFloat(in: 18...maxRadius)
             kind = .asteroid(radius: radius, speed: speed, seed: rng.next())
             glowColor = .white
         }
