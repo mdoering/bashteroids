@@ -11,6 +11,7 @@ final class GameScene: SKScene {
     private var ufos: [UFO] = []
     private var bullets: [Bullet] = []
     private var powerUps: [PowerUp] = []
+    private var mines: [Mine] = []
 
     private var spawner: Spawner!
     private var lastUpdateTime: TimeInterval = 0
@@ -80,6 +81,7 @@ final class GameScene: SKScene {
         for u in ufos     { u.update(dt: dt) }
         for b in bullets  { b.update(dt: dt) }
         for pu in powerUps { pu.update(dt: dt) }
+        for m in mines { m.update(dt: dt) }
 
         fireUFOsIfReady()
 
@@ -190,6 +192,10 @@ final class GameScene: SKScene {
             let pu = PowerUp(kind: kind, position: s.position, velocity: s.velocity)
             powerUps.append(pu)
             addChild(pu.node)
+        case .mine:
+            let mine = Mine(position: s.position)
+            mines.append(mine)
+            addChild(mine.node)
         }
     }
 
@@ -232,6 +238,29 @@ final class GameScene: SKScene {
         powerUps.removeAll { dead in
             if !dead.alive { dead.node.removeFromParent(); return true }
             return false
+        }
+        mines.removeAll { dead in
+            guard !dead.alive else { return false }
+            if dead.exploded {
+                Explosion.burst(at: dead.position,
+                                radius: Mine.explosionRadius,
+                                color: .white,
+                                parent: self)
+                audio.playExplosion()
+                for ship in ships where ship.alive {
+                    if ship.position.distance(to: dead.position) < Mine.explosionRadius {
+                        if ship.hasShield { ship.hasShield = false } else { ship.alive = false }
+                    }
+                }
+                for ufo in ufos where ufo.alive {
+                    if ufo.position.distance(to: dead.position) < Mine.explosionRadius {
+                        ufo.alive = false
+                    }
+                }
+                nearestShip(to: dead.position)?.score += 5
+            }
+            dead.node.removeFromParent()
+            return true
         }
     }
 

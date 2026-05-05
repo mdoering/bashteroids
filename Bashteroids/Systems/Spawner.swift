@@ -4,6 +4,7 @@ enum SpawnKind {
     case asteroid(radius: CGFloat, seed: UInt64)
     case ufo(baseHeading: CGFloat, seed: UInt64)
     case powerUp(kind: PowerUpKind, speed: CGFloat)
+    case mine
 }
 
 struct Spawn {
@@ -26,7 +27,7 @@ final class Spawner {
 
     private struct Pending {
         let side: ScreenSide
-        let glow: SKShapeNode
+        let glow: SKShapeNode?
         let spawnAt: TimeInterval
         let kind: PendingKind
     }
@@ -35,6 +36,7 @@ final class Spawner {
         case asteroid(radius: CGFloat, speed: CGFloat, seed: UInt64)
         case ufo(seed: UInt64)
         case powerUp(kind: PowerUpKind)
+        case mine
     }
 
     private var pending: [Pending] = []
@@ -48,7 +50,7 @@ final class Spawner {
     func reset() {
         elapsed = 0
         timeToNextDecision = 1.5
-        for p in pending { p.glow.removeFromParent() }
+        for p in pending { p.glow?.removeFromParent() }
         pending.removeAll()
     }
 
@@ -67,7 +69,7 @@ final class Spawner {
 
         for p in pending {
             if elapsed >= p.spawnAt {
-                p.glow.run(.sequence([.fadeOut(withDuration: 0.2), .removeFromParent()]))
+                p.glow?.run(.sequence([.fadeOut(withDuration: 0.2), .removeFromParent()]))
                 ready.append(makeSpawn(from: p))
             } else {
                 remaining.append(p)
@@ -88,6 +90,14 @@ final class Spawner {
             let kind: PowerUpKind = rng.cgFloat(in: 0...1) < 0.5 ? .shield : .dualCanon
             pendingKind = .powerUp(kind: kind)
             glowColor = .white
+        } else if rollMine() {
+            pending.append(Pending(
+                side: side,
+                glow: nil,
+                spawnAt: elapsed + Self.warningDuration,
+                kind: .mine
+            ))
+            return
         } else if rollUFO() {
             pendingKind = .ufo(seed: rng.next())
             glowColor = SKColor(red: 1.0, green: 0.4, blue: 0.4, alpha: 1)
@@ -130,6 +140,12 @@ final class Spawner {
         return Double(rng.cgFloat(in: 0...1)) < 0.15
     }
 
+    private func rollMine() -> Bool {
+        guard elapsed > 60 else { return false }
+        let chance = min(0.20, Double((CGFloat(elapsed) - 60) / 60 * 0.20))
+        return Double(rng.cgFloat(in: 0...1)) < chance
+    }
+
     // MARK: - Spawn assembly
 
     private func makeSpawn(from p: Pending) -> Spawn {
@@ -160,7 +176,20 @@ final class Spawner {
                          position: position,
                          velocity: velocity,
                          side: p.side)
+
+        case .mine:
+            return Spawn(kind: .mine,
+                         position: interiorPosition(),
+                         velocity: .zero,
+                         side: p.side)
         }
+    }
+
+    private func interiorPosition() -> CGPoint {
+        let margin: CGFloat = 80
+        let x = rng.cgFloat(in: bounds.minX + margin ... bounds.maxX - margin)
+        let y = rng.cgFloat(in: bounds.minY + margin ... bounds.maxY - margin)
+        return CGPoint(x: x, y: y)
     }
 
     private func entryPosition(side: ScreenSide) -> CGPoint {

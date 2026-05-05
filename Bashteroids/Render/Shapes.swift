@@ -139,6 +139,30 @@ enum Shapes {
         return node
     }
 
+    static func mine() -> SKShapeNode {
+        let r: CGFloat       = Mine.collisionRadius
+        let spikeLen: CGFloat = 6
+        let path = CGMutablePath()
+        for i in 0..<6 {
+            let a = CGFloat(i) / 6 * .pi * 2
+            path.move(to:    CGPoint(x:  r             * cos(a), y:  r             * sin(a)))
+            path.addLine(to: CGPoint(x: (r + spikeLen) * cos(a), y: (r + spikeLen) * sin(a)))
+        }
+        let container = SKShapeNode(path: path)
+        container.strokeColor = .white
+        container.fillColor   = .clear
+        container.lineWidth   = 1.5
+        container.isAntialiased = true
+
+        let circle = SKShapeNode(circleOfRadius: r)
+        circle.strokeColor = .white
+        circle.fillColor   = .clear
+        circle.lineWidth   = 1.5
+        circle.isAntialiased = true
+        container.addChild(circle)
+        return container
+    }
+
     // Edge glow: a rectangular bar laid along one screen side. Returned at
     // alpha 0; caller fades it in over the warning duration. Position is
     // anchored so the bar sits along the named edge of a frame `bounds`.
