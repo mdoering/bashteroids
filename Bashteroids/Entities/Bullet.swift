@@ -8,17 +8,26 @@ final class Bullet: Entity {
 
     weak var owner: AnyObject?
 
-    init(position: CGPoint, velocity: CGPoint, owner: AnyObject?) {
+    private let maxDistance: CGFloat?
+    private var distanceTravelled: CGFloat = 0
+
+    init(position: CGPoint,
+         velocity: CGPoint,
+         owner: AnyObject?,
+         color: SKColor = .white,
+         maxDistance: CGFloat? = nil) {
         self.velocity = velocity
         self.owner = owner
-
-        let n = Shapes.bullet()
+        self.maxDistance = maxDistance
+        let heading = atan2(velocity.y, velocity.x)
+        let n = Shapes.bullet(color: color, heading: heading)
         n.position = position
         self.node = n
     }
 
     func update(dt: TimeInterval) {
-        // Position is integrated by the Movement system; bullets have no
-        // internal state to advance.
+        guard let max = maxDistance else { return }
+        distanceTravelled += velocity.length * CGFloat(dt)
+        if distanceTravelled >= max { alive = false }
     }
 }

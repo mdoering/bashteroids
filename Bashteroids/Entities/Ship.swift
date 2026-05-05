@@ -72,6 +72,6 @@ final class Ship: Entity {
 
         let nose = position + CGPoint.fromAngle(heading, length: Self.noseOffset)
         let bulletVel = velocity + CGPoint.fromAngle(heading, length: Self.bulletSpeed)
-        return Bullet(position: nose, velocity: bulletVel, owner: self)
+        return Bullet(position: nose, velocity: bulletVel, owner: self, color: color)
     }
 }

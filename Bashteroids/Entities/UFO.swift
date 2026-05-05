@@ -51,6 +51,6 @@ final class UFO: Entity {
 
         shootCooldown = TimeInterval(rng.cgFloat(in: Self.shootIntervalMin...Self.shootIntervalMax))
 
-        return Bullet(position: muzzle, velocity: bulletVel, owner: self)
+        return Bullet(position: muzzle, velocity: bulletVel, owner: self, color: .white)
     }
 }

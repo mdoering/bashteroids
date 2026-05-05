@@ -49,6 +49,14 @@ enum Shapes {
         node.fillColor = .clear
         node.lineWidth = 1.5
         node.isAntialiased = true
+
+        let inner = SKShapeNode(circleOfRadius: radius * 0.38)
+        inner.strokeColor = SKColor(white: 0.35, alpha: 1)
+        inner.fillColor = .clear
+        inner.lineWidth = 1
+        inner.isAntialiased = true
+        node.addChild(inner)
+
         return node
     }
 
@@ -80,13 +88,18 @@ enum Shapes {
         return node
     }
 
-    // Bullet: tiny dot.
-    static func bullet(color: SKColor = .white) -> SKShapeNode {
-        let node = SKShapeNode(circleOfRadius: 2)
+    // Bullet: short laser line oriented along the heading.
+    static func bullet(color: SKColor = .white, heading: CGFloat = 0) -> SKShapeNode {
+        let half: CGFloat = 3
+        let path = CGMutablePath()
+        path.move(to: CGPoint(x: -cos(heading) * half, y: -sin(heading) * half))
+        path.addLine(to: CGPoint(x:  cos(heading) * half, y:  sin(heading) * half))
+        let node = SKShapeNode(path: path)
         node.strokeColor = color
-        node.fillColor = color
-        node.lineWidth = 0
-        node.isAntialiased = false
+        node.fillColor = .clear
+        node.lineWidth = 1.5
+        node.lineCap = .round
+        node.isAntialiased = true
         return node
     }
 
