@@ -30,7 +30,7 @@ final class Mine: Entity {
         let t      = CGFloat(age / Self.lifetime)
         let period = Double(1.5 - t * 1.3)
         flashPhase += dt
-        if flashPhase >= period { flashPhase -= period }
+        flashPhase = flashPhase.truncatingRemainder(dividingBy: period)
         node.alpha = flashPhase < period / 2 ? 1.0 : 0.15
     }
 }

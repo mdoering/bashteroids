@@ -200,6 +200,30 @@ final class GameScene: SKScene {
     }
 
     private func reapDead() {
+        mines.removeAll { dead in
+            guard !dead.alive else { return false }
+            if dead.exploded {
+                Explosion.burst(at: dead.position,
+                                radius: Mine.explosionRadius,
+                                color: .white,
+                                parent: self)
+                audio.playExplosion()
+                for ship in ships where ship.alive {
+                    if ship.position.distance(to: dead.position) < Mine.explosionRadius {
+                        if ship.hasShield { ship.hasShield = false } else { ship.alive = false }
+                    }
+                }
+                for ufo in ufos where ufo.alive {
+                    if ufo.position.distance(to: dead.position) < Mine.explosionRadius {
+                        ufo.alive = false
+                    }
+                }
+                nearestShip(to: dead.position)?.score += 5
+            }
+            dead.node.removeFromParent()
+            return true
+        }
+
         for ship in ships where !ship.alive {
             if ship.node.parent != nil {
                 Explosion.burst(at: ship.position,
@@ -238,29 +262,6 @@ final class GameScene: SKScene {
         powerUps.removeAll { dead in
             if !dead.alive { dead.node.removeFromParent(); return true }
             return false
-        }
-        mines.removeAll { dead in
-            guard !dead.alive else { return false }
-            if dead.exploded {
-                Explosion.burst(at: dead.position,
-                                radius: Mine.explosionRadius,
-                                color: .white,
-                                parent: self)
-                audio.playExplosion()
-                for ship in ships where ship.alive {
-                    if ship.position.distance(to: dead.position) < Mine.explosionRadius {
-                        if ship.hasShield { ship.hasShield = false } else { ship.alive = false }
-                    }
-                }
-                for ufo in ufos where ufo.alive {
-                    if ufo.position.distance(to: dead.position) < Mine.explosionRadius {
-                        ufo.alive = false
-                    }
-                }
-                nearestShip(to: dead.position)?.score += 5
-            }
-            dead.node.removeFromParent()
-            return true
         }
     }
 
