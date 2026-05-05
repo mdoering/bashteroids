@@ -60,3 +60,10 @@ fastlane/report.xml
 fastlane/Preview.html
 fastlane/screenshots/**/*.png
 fastlane/test_output
+
+# macOS Finder metadata
+.DS_Store
+
+# Xcode build outputs (in case derived-data is redirected into the repo)
+DerivedData/
+build/

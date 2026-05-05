@@ -1,0 +1,132 @@
+import SpriteKit
+
+enum ScreenSide: CaseIterable {
+    case top, bottom, left, right
+}
+
+enum Shapes {
+
+    // Ship: closed triangle pointing along +X (zRotation = 0 means facing right).
+    // Stroked, no fill, color set per player.
+    static func shipV(color: SKColor, scale: CGFloat = 1) -> SKShapeNode {
+        let path = CGMutablePath()
+        path.move(to: CGPoint(x: 14, y: 0))
+        path.addLine(to: CGPoint(x: -10, y: 8))
+        path.addLine(to: CGPoint(x: -6, y: 0))
+        path.addLine(to: CGPoint(x: -10, y: -8))
+        path.closeSubpath()
+
+        let node = SKShapeNode(path: path)
+        node.strokeColor = color
+        node.fillColor = .clear
+        node.lineWidth = 1.5
+        node.lineJoin = .miter
+        node.isAntialiased = true
+        node.setScale(scale)
+        return node
+    }
+
+    // Asteroid: irregular closed polygon. Same `seed` produces the same shape,
+    // so each asteroid keeps its silhouette frame to frame.
+    static func asteroid(radius: CGFloat, seed: UInt64, vertexCount: Int = 10) -> SKShapeNode {
+        var rng = SeededGenerator(seed: seed)
+        let count = max(8, min(12, vertexCount))
+        let path = CGMutablePath()
+
+        for i in 0..<count {
+            let baseAngle = CGFloat(i) / CGFloat(count) * .pi * 2
+            let angleJitter = rng.cgFloat(in: -0.15...0.15)
+            let radiusJitter = rng.cgFloat(in: 0.7...1.15)
+            let r = radius * radiusJitter
+            let a = baseAngle + angleJitter
+            let p = CGPoint.fromAngle(a, length: r)
+            if i == 0 { path.move(to: p) } else { path.addLine(to: p) }
+        }
+        path.closeSubpath()
+
+        let node = SKShapeNode(path: path)
+        node.strokeColor = .white
+        node.fillColor = .clear
+        node.lineWidth = 1.5
+        node.isAntialiased = true
+        return node
+    }
+
+    // UFO: classic flying-saucer silhouette in line segments.
+    static func ufo(scale: CGFloat = 1) -> SKShapeNode {
+        let path = CGMutablePath()
+
+        // Lower hull (downward dome)
+        path.move(to: CGPoint(x: -16, y: 0))
+        path.addLine(to: CGPoint(x: -8, y: -6))
+        path.addLine(to: CGPoint(x: 8, y: -6))
+        path.addLine(to: CGPoint(x: 16, y: 0))
+
+        // Mid plate
+        path.addLine(to: CGPoint(x: -16, y: 0))
+
+        // Upper dome
+        path.move(to: CGPoint(x: -10, y: 0))
+        path.addLine(to: CGPoint(x: -6, y: 6))
+        path.addLine(to: CGPoint(x: 6, y: 6))
+        path.addLine(to: CGPoint(x: 10, y: 0))
+
+        let node = SKShapeNode(path: path)
+        node.strokeColor = .white
+        node.fillColor = .clear
+        node.lineWidth = 1.5
+        node.isAntialiased = true
+        node.setScale(scale)
+        return node
+    }
+
+    // Bullet: tiny dot.
+    static func bullet(color: SKColor = .white) -> SKShapeNode {
+        let node = SKShapeNode(circleOfRadius: 2)
+        node.strokeColor = color
+        node.fillColor = color
+        node.lineWidth = 0
+        node.isAntialiased = false
+        return node
+    }
+
+    // Edge glow: a rectangular bar laid along one screen side. Returned at
+    // alpha 0; caller fades it in over the warning duration. Position is
+    // anchored so the bar sits along the named edge of a frame `bounds`.
+    static func edgeGlow(side: ScreenSide,
+                         bounds: CGRect,
+                         thickness: CGFloat = 24,
+                         color: SKColor = .white) -> SKShapeNode {
+        let rect: CGRect
+        switch side {
+        case .top:
+            rect = CGRect(x: bounds.minX,
+                          y: bounds.maxY - thickness,
+                          width: bounds.width,
+                          height: thickness)
+        case .bottom:
+            rect = CGRect(x: bounds.minX,
+                          y: bounds.minY,
+                          width: bounds.width,
+                          height: thickness)
+        case .left:
+            rect = CGRect(x: bounds.minX,
+                          y: bounds.minY,
+                          width: thickness,
+                          height: bounds.height)
+        case .right:
+            rect = CGRect(x: bounds.maxX - thickness,
+                          y: bounds.minY,
+                          width: thickness,
+                          height: bounds.height)
+        }
+
+        let node = SKShapeNode(rect: rect)
+        node.strokeColor = .clear
+        node.fillColor = color
+        node.alpha = 0
+        node.blendMode = .add
+        node.isAntialiased = false
+        return node
+    }
+}
