@@ -179,10 +179,11 @@ enum Shapes {
         path.addLine(to: CGPoint(x:   6, y: 6))
         path.addLine(to: CGPoint(x:  10, y: 0))
 
-        // Downward spikes
+        // Downward triangular spikes
         for xPos: CGFloat in [-10, -4, 4, 10] {
-            path.move(to:    CGPoint(x: xPos, y: -6))
-            path.addLine(to: CGPoint(x: xPos, y: -13))
+            path.move(to:    CGPoint(x: xPos - 2, y: -6))
+            path.addLine(to: CGPoint(x: xPos,     y: -13))
+            path.addLine(to: CGPoint(x: xPos + 2, y: -6))
         }
 
         let node = SKShapeNode(path: path)
