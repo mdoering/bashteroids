@@ -1,4 +1,5 @@
 import SpriteKit
+import GameController
 
 final class TitleScene: SKScene {
     private let manager = ControllerManager.shared
@@ -11,11 +12,8 @@ final class TitleScene: SKScene {
     private var prevSlotCount: Int = 0
     private var slotAWasPressed: [Int: Bool] = [:]
 
-    override var canBecomeFirstResponder: Bool { true }
-
     override func didMove(to view: SKView) {
         backgroundColor = .black
-        becomeFirstResponder()
 
         let title = SKLabelNode(text: "BASHTEROIDS")
         title.fontName = "AvenirNext-Bold"
@@ -31,16 +29,46 @@ final class TitleScene: SKScene {
         hint.position = CGPoint(x: size.width / 2, y: size.height * 0.20)
         addChild(hint)
 
-        let hi = SKLabelNode(text: "HI  \(HighScore.current)")
-        hi.fontName = "AvenirNext-Regular"
-        hi.fontSize = 14
-        hi.fontColor = SKColor(white: 0.40, alpha: 1)
-        hi.position = CGPoint(x: size.width / 2, y: size.height * 0.08)
-        addChild(hi)
+        let leaderboardX: CGFloat = 30
+        let safeTopInset = view.safeAreaInsets.top
+        let leaderboardTopY = size.height - safeTopInset - 80
+
+        let heading = SKLabelNode(text: "HIGHSCORES")
+        heading.fontName = "AvenirNext-Bold"
+        heading.fontSize = 16
+        heading.fontColor = ControllerManager.playerColors[0]
+        heading.horizontalAlignmentMode = .left
+        heading.verticalAlignmentMode = .top
+        heading.position = CGPoint(x: leaderboardX, y: leaderboardTopY)
+        addChild(heading)
+
+        for (i, entry) in HighScore.top.enumerated() {
+            let levelTag = entry.level.map { " L\($0)" } ?? ""
+            let row = SKLabelNode(text: "\(entry.name)\(levelTag): \(entry.score)")
+            row.fontName = "AvenirNext-Regular"
+            row.fontSize = 14
+            row.fontColor = ControllerManager.playerColors[1]
+            row.horizontalAlignmentMode = .left
+            row.verticalAlignmentMode = .top
+            row.position = CGPoint(x: leaderboardX,
+                                   y: leaderboardTopY - CGFloat(24 * (i + 1)))
+            addChild(row)
+        }
 
         let icon = makeIconNode()
-        icon.position = CGPoint(x: size.width - 80, y: size.height - 58)
+        icon.position = CGPoint(x: size.width - 80, y: size.height - 90)
         addChild(icon)
+
+        #if DEBUG
+        let dbg = SKLabelNode(text: "[DEBUG] START LEVEL: \(DebugSettings.startLevel)")
+        dbg.fontName = "AvenirNext-Regular"
+        dbg.fontSize = 12
+        dbg.fontColor = SKColor(white: 0.5, alpha: 1)
+        dbg.horizontalAlignmentMode = .right
+        dbg.position = CGPoint(x: size.width - 20, y: size.height - 150)
+        dbg.name = "debug-start-level"
+        addChild(dbg)
+        #endif
 
         addChild(slotsLayer)
         renderSlots()
@@ -60,6 +88,10 @@ final class TitleScene: SKScene {
         }
         manager.onStartPressed = { [weak self] in self?.tryStart() }
         manager.setJoinEnabled(true)
+
+        KeyboardManager.shared.onKeyDown = { [weak self] code in
+            self?.handleKeyDown(code)
+        }
     }
 
     override func willMove(from view: SKView) {
@@ -81,7 +113,9 @@ final class TitleScene: SKScene {
 
         if activeNameSlot == nil {
             for (i, slot) in manager.slots.enumerated() {
-                let pressed = slot.controller?.extendedGamepad?.buttonA.isPressed ?? false
+                let pressed = slot.controller?.extendedGamepad?.buttonA.isPressed
+                    ?? slot.controller?.microGamepad?.buttonA.isPressed
+                    ?? false
                 let was = slotAWasPressed[i] ?? false
                 if pressed && !was {
                     activeNameSlot = i
@@ -102,53 +136,122 @@ final class TitleScene: SKScene {
         for c in manager.connectedControllers {
             let id = ObjectIdentifier(c)
 
+            // Menu button: Siri Remote's Menu is system-reserved (returns to
+            // home screen). Only poll it for MFi controllers.
             let menuPressed = c.extendedGamepad?.buttonMenu.isPressed ?? false
             let menuWas = menuWasPressed[id] ?? false
             if menuPressed && !menuWas { tryStart(); break }
             menuWasPressed[id] = menuPressed
 
-            let xPressed = c.extendedGamepad?.buttonX.isPressed ?? false
+            let xPressed = c.extendedGamepad?.buttonX.isPressed
+                ?? c.microGamepad?.buttonX.isPressed
+                ?? false
             let xWas = xWasPressed[id] ?? false
             if xPressed && !xWas { tryStart(); break }
             xWasPressed[id] = xPressed
         }
     }
 
-    override func pressesBegan(_ presses: Set<UIPress>, with event: UIPressesEvent?) {
-        for press in presses {
-            guard let key = press.key else { continue }
-
-            if activeNameSlot != nil {
-                switch key.keyCode {
-                case .keyboardReturnOrEnter:
-                    confirmName()
-                case .keyboardDeleteOrBackspace:
-                    if !nameBuffer.isEmpty { nameBuffer.removeLast(); renderSlots() }
-                default:
-                    let chars = key.characters ?? ""
-                    if chars.count == 1,
-                       let scalar = chars.unicodeScalars.first,
-                       CharacterSet.alphanumerics.union(.init(charactersIn: " ")).contains(scalar),
-                       nameBuffer.count < 8 {
-                        nameBuffer += chars.uppercased()
-                        renderSlots()
-                    }
-                }
-                return
-            }
-
-            switch key.keyCode {
-            case .keyboardSpacebar, .keyboardReturnOrEnter:
-                tryStart()
-                return
-            case .keyboardEscape:
-                MacFullScreen.exitIfActive()
-                return
+    private func handleKeyDown(_ code: GCKeyCode) {
+        if activeNameSlot != nil {
+            switch code {
+            case .returnOrEnter, .keypadEnter:
+                confirmName()
+            case .deleteOrBackspace:
+                if !nameBuffer.isEmpty { nameBuffer.removeLast(); renderSlots() }
             default:
-                break
+                if let ch = TitleScene.charFor(keyCode: code), nameBuffer.count < 8 {
+                    nameBuffer.append(ch)
+                    renderSlots()
+                }
             }
+            return
         }
-        super.pressesBegan(presses, with: event)
+
+        #if DEBUG
+        if let digit = TitleScene.digit(for: code) {
+            DebugSettings.startLevel = max(1, digit)
+            if let label = childNode(withName: "debug-start-level") as? SKLabelNode {
+                label.text = "[DEBUG] START LEVEL: \(DebugSettings.startLevel)"
+            }
+            return
+        }
+        #endif
+
+        switch code {
+        case .keyA:
+            if !manager.hasKeyboardPlayer,
+               manager.slots.count < ControllerManager.maxPlayers {
+                manager.claimKeyboard()
+            }
+        case .spacebar, .returnOrEnter, .keypadEnter:
+            tryStart()
+        case .escape:
+            MacFullScreen.exitIfActive()
+        default:
+            break
+        }
+    }
+
+    #if DEBUG
+    private static func digit(for code: GCKeyCode) -> Int? {
+        switch code {
+        case .zero:  return 0
+        case .one:   return 1
+        case .two:   return 2
+        case .three: return 3
+        case .four:  return 4
+        case .five:  return 5
+        case .six:   return 6
+        case .seven: return 7
+        case .eight: return 8
+        case .nine:  return 9
+        default:     return nil
+        }
+    }
+    #endif
+
+    private static func charFor(keyCode code: GCKeyCode) -> Character? {
+        switch code {
+        case .keyA: return "A"
+        case .keyB: return "B"
+        case .keyC: return "C"
+        case .keyD: return "D"
+        case .keyE: return "E"
+        case .keyF: return "F"
+        case .keyG: return "G"
+        case .keyH: return "H"
+        case .keyI: return "I"
+        case .keyJ: return "J"
+        case .keyK: return "K"
+        case .keyL: return "L"
+        case .keyM: return "M"
+        case .keyN: return "N"
+        case .keyO: return "O"
+        case .keyP: return "P"
+        case .keyQ: return "Q"
+        case .keyR: return "R"
+        case .keyS: return "S"
+        case .keyT: return "T"
+        case .keyU: return "U"
+        case .keyV: return "V"
+        case .keyW: return "W"
+        case .keyX: return "X"
+        case .keyY: return "Y"
+        case .keyZ: return "Z"
+        case .zero: return "0"
+        case .one: return "1"
+        case .two: return "2"
+        case .three: return "3"
+        case .four: return "4"
+        case .five: return "5"
+        case .six: return "6"
+        case .seven: return "7"
+        case .eight: return "8"
+        case .nine: return "9"
+        case .spacebar: return " "
+        default: return nil
+        }
     }
 
     private func confirmName() {
@@ -167,19 +270,19 @@ final class TitleScene: SKScene {
     private func makeIconNode() -> SKNode {
         let container = SKNode()
 
-        let red = Shapes.shipV(color: ControllerManager.playerColors[0], scale: 1.2)
-        red.position = CGPoint(x: -22, y: -7)
-        red.zRotation = 0.14
+        let rock = Shapes.asteroid(radius: 13, seed: 42)
+        rock.position = CGPoint(x: -22, y: 24)
+        container.addChild(rock)
+
+        let red = Shapes.shipV(color: ControllerManager.playerColors[0], scale: 1.3)
+        red.position = CGPoint(x: -20, y: -22)
+        red.zRotation = -2.01
         container.addChild(red)
 
-        let blue = Shapes.shipV(color: ControllerManager.playerColors[1], scale: 1.2)
-        blue.position = CGPoint(x: 22, y: 5)
-        blue.zRotation = 2.90
+        let blue = Shapes.shipV(color: ControllerManager.playerColors[1], scale: 1.3)
+        blue.position = CGPoint(x: 22, y: -5)
+        blue.zRotation = 0.37
         container.addChild(blue)
-
-        let rock = Shapes.asteroid(radius: 12, seed: 42)
-        rock.position = CGPoint(x: -32, y: 34)
-        container.addChild(rock)
 
         return container
     }

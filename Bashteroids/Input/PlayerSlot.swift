@@ -4,6 +4,7 @@ import SpriteKit
 struct PlayerInput {
     var turn: CGFloat = 0                 // -1...1 (negative = left)
     var thrust: Bool = false              // held
+    var brake: Bool = false               // held — only effective if ship.hasBrakes
     var firePressedThisFrame: Bool = false // edge-triggered, consumed on read
 }
 
@@ -11,6 +12,7 @@ final class PlayerSlot {
     let index: Int
     let color: SKColor
     weak var controller: GCController?
+    let keyboard: KeyboardInputState?
 
     private var firePressedEdge: Bool = false
 
@@ -18,7 +20,15 @@ final class PlayerSlot {
         self.index = index
         self.color = color
         self.controller = controller
+        self.keyboard = nil
         installFireHandler()
+    }
+
+    init(index: Int, color: SKColor, keyboard: KeyboardInputState) {
+        self.index = index
+        self.color = color
+        self.controller = nil
+        self.keyboard = keyboard
     }
 
     deinit {
@@ -26,38 +36,59 @@ final class PlayerSlot {
     }
 
     func snapshot() -> PlayerInput {
+        if let kb = keyboard { return kb.snapshot() }
+
         let edge = firePressedEdge
         firePressedEdge = false
 
-        guard let gp = controller?.extendedGamepad else {
-            return PlayerInput(turn: 0, thrust: false, firePressedThisFrame: edge)
+        if let gp = controller?.extendedGamepad {
+            var turn = CGFloat(gp.leftThumbstick.xAxis.value)
+            if abs(turn) < 0.15 {
+                turn = CGFloat(gp.dpad.xAxis.value)
+            }
+            turn = max(-1, min(1, turn))
+
+            let stickY = CGFloat(gp.rightThumbstick.yAxis.value)
+            let thrust = gp.buttonA.isPressed || gp.rightTrigger.value > 0.2 || stickY > 0.2
+            let brake  = gp.buttonB.isPressed || stickY < -0.2
+
+            return PlayerInput(turn: turn, thrust: thrust, brake: brake, firePressedThisFrame: edge)
         }
 
-        var turn = CGFloat(gp.leftThumbstick.xAxis.value)
-        if abs(turn) < 0.15 {
-            turn = CGFloat(gp.dpad.xAxis.value)
+        if let mg = controller?.microGamepad {
+            let turn = max(-1, min(1, CGFloat(mg.dpad.xAxis.value)))
+            let thrust = mg.dpad.yAxis.value > 0.2
+            let brake  = mg.dpad.yAxis.value < -0.2
+            return PlayerInput(turn: turn, thrust: thrust, brake: brake, firePressedThisFrame: edge)
         }
-        turn = max(-1, min(1, turn))
 
-        let thrust = gp.buttonA.isPressed || gp.rightTrigger.value > 0.2
-
-        return PlayerInput(turn: turn, thrust: thrust, firePressedThisFrame: edge)
+        return PlayerInput(turn: 0, thrust: false, brake: false, firePressedThisFrame: edge)
     }
 
     private func installFireHandler() {
-        guard let gp = controller?.extendedGamepad else { return }
         let handler: GCControllerButtonValueChangedHandler = { [weak self] _, _, pressed in
             if pressed { self?.firePressedEdge = true }
         }
-        gp.buttonX.pressedChangedHandler = handler
-        gp.rightShoulder.pressedChangedHandler = handler
-        gp.leftTrigger.pressedChangedHandler = handler
+        if let gp = controller?.extendedGamepad {
+            gp.buttonX.pressedChangedHandler = handler
+            gp.rightShoulder.pressedChangedHandler = handler
+            gp.leftTrigger.pressedChangedHandler = handler
+            return
+        }
+        if let mg = controller?.microGamepad {
+            mg.buttonA.pressedChangedHandler = handler
+        }
     }
 
     private func removeFireHandler() {
-        guard let gp = controller?.extendedGamepad else { return }
-        gp.buttonX.pressedChangedHandler = nil
-        gp.rightShoulder.pressedChangedHandler = nil
-        gp.leftTrigger.pressedChangedHandler = nil
+        if let gp = controller?.extendedGamepad {
+            gp.buttonX.pressedChangedHandler = nil
+            gp.rightShoulder.pressedChangedHandler = nil
+            gp.leftTrigger.pressedChangedHandler = nil
+            return
+        }
+        if let mg = controller?.microGamepad {
+            mg.buttonA.pressedChangedHandler = nil
+        }
     }
 }

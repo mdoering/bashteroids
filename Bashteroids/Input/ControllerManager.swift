@@ -13,9 +13,12 @@ final class ControllerManager {
     ]
 
     private(set) var slots: [PlayerSlot] = []
+    let keyboardInput = KeyboardInputState()
 
     var onSlotsChanged: (() -> Void)?
     var onStartPressed: (() -> Void)?
+
+    var hasKeyboardPlayer: Bool { slots.contains { $0.keyboard != nil } }
 
     private var joinEnabled = false
     private var connectObserver: NSObjectProtocol?
@@ -93,18 +96,48 @@ final class ControllerManager {
         // Menu/Start is polled per-frame by TitleScene/GameOverScene rather
         // than wired through pressedChangedHandler. The handler-based path
         // turned out to be unreliable across fullscreen transitions.
+        configureMicroGamepad(controller)
+    }
+
+    private func configureMicroGamepad(_ controller: GCController) {
+        guard let mg = controller.microGamepad else { return }
+        mg.reportsAbsoluteDpadValues = true
+        mg.allowsRotation = false
     }
 
     private func installJoinHandler(_ controller: GCController) {
-        guard let gp = controller.extendedGamepad else { return }
-        if joinEnabled && slot(for: controller) == nil {
-            gp.buttonA.pressedChangedHandler = { [weak self] _, _, pressed in
-                guard pressed, let self else { return }
-                self.claim(controller: controller)
+        if let gp = controller.extendedGamepad {
+            if joinEnabled && slot(for: controller) == nil {
+                gp.buttonA.pressedChangedHandler = { [weak self] _, _, pressed in
+                    guard pressed, let self else { return }
+                    self.claim(controller: controller)
+                }
+            } else {
+                gp.buttonA.pressedChangedHandler = nil
             }
-        } else {
-            gp.buttonA.pressedChangedHandler = nil
+            return
         }
+
+        if let mg = controller.microGamepad {
+            if joinEnabled && slot(for: controller) == nil {
+                mg.buttonA.pressedChangedHandler = { [weak self] _, _, pressed in
+                    guard pressed, let self else { return }
+                    self.claim(controller: controller)
+                }
+            } else {
+                mg.buttonA.pressedChangedHandler = nil
+            }
+        }
+    }
+
+    @discardableResult
+    func claimKeyboard() -> PlayerSlot? {
+        guard !hasKeyboardPlayer, slots.count < Self.maxPlayers else { return nil }
+        let index = slots.count
+        let slot = PlayerSlot(index: index, color: Self.playerColors[index], keyboard: keyboardInput)
+        slots.append(slot)
+        onSlotsChanged?()
+        return slot
     }
 
     @discardableResult
