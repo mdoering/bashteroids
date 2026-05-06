@@ -2,34 +2,26 @@ import SwiftUI
 import SpriteKit
 
 struct GameContainerView: View {
-    @FocusState private var focused: Bool
+    @StateObject private var nameEntry = NameEntryCoordinator.shared
 
     var body: some View {
-        GeometryReader { proxy in
-            SpriteView(
-                scene: makeScene(size: proxy.size),
-                preferredFramesPerSecond: 60,
-                options: [.ignoresSiblingOrder]
-            )
-        }
-        .background(.black)
-        .focusable()
-        .focused($focused)
-        .onAppear {
-            MacFullScreen.enterIfNeeded()
-            focused = true
-        }
-        .onKeyPress(.space)  { triggerStart() }
-        .onKeyPress(.return) { triggerStart() }
-        .onKeyPress(.escape) {
-            MacFullScreen.exitIfActive()
-            return .handled
-        }
-    }
+        ZStack {
+            GeometryReader { proxy in
+                SpriteView(
+                    scene: makeScene(size: proxy.size),
+                    preferredFramesPerSecond: 60,
+                    options: [.ignoresSiblingOrder]
+                )
+            }
+            .background(.black)
 
-    private func triggerStart() -> KeyPress.Result {
-        ControllerManager.shared.simulateStartPressed()
-        return .handled
+            #if os(tvOS)
+            if nameEntry.request != nil {
+                NameEntryOverlay(coordinator: nameEntry)
+            }
+            #endif
+        }
+        .onAppear { MacFullScreen.enterIfNeeded() }
     }
 
     private func makeScene(size: CGSize) -> SKScene {

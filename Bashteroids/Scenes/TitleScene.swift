@@ -78,10 +78,15 @@ final class TitleScene: SKScene {
             let newCount = self.manager.slots.count
             if newCount > self.prevSlotCount {
                 let idx = newCount - 1
-                self.activeNameSlot = idx
-                self.nameBuffer = UserDefaults.standard.string(
+                let current = UserDefaults.standard.string(
                     forKey: "player_name_\(idx)") ?? "P\(idx + 1)"
+                #if os(tvOS)
+                self.beginCoordinatorNameEntry(slot: idx, current: current)
+                #else
+                self.activeNameSlot = idx
+                self.nameBuffer = current
                 self.manager.setJoinEnabled(false)
+                #endif
             }
             self.prevSlotCount = newCount
             self.renderSlots()
@@ -111,25 +116,39 @@ final class TitleScene: SKScene {
     override func update(_ currentTime: TimeInterval) {
         guard !transitioning else { return }
 
-        if activeNameSlot == nil {
+        let nameEntryActive: Bool
+        #if os(tvOS)
+        nameEntryActive = NameEntryCoordinator.shared.request != nil
+        #else
+        nameEntryActive = activeNameSlot != nil
+        #endif
+
+        if !nameEntryActive {
             for (i, slot) in manager.slots.enumerated() {
                 let pressed = slot.controller?.extendedGamepad?.buttonA.isPressed
                     ?? slot.controller?.microGamepad?.buttonA.isPressed
                     ?? false
                 let was = slotAWasPressed[i] ?? false
                 if pressed && !was {
-                    activeNameSlot = i
-                    nameBuffer = UserDefaults.standard.string(
+                    let current = UserDefaults.standard.string(
                         forKey: "player_name_\(i)") ?? "P\(i + 1)"
+                    #if os(tvOS)
+                    beginCoordinatorNameEntry(slot: i, current: current)
+                    #else
+                    activeNameSlot = i
+                    nameBuffer = current
                     manager.setJoinEnabled(false)
                     renderSlots()
+                    #endif
                     break
                 }
                 slotAWasPressed[i] = pressed
             }
         } else {
             for (i, slot) in manager.slots.enumerated() {
-                slotAWasPressed[i] = slot.controller?.extendedGamepad?.buttonA.isPressed ?? false
+                slotAWasPressed[i] = slot.controller?.extendedGamepad?.buttonA.isPressed
+                    ?? slot.controller?.microGamepad?.buttonA.isPressed
+                    ?? false
             }
         }
 
@@ -266,6 +285,22 @@ final class TitleScene: SKScene {
         manager.setJoinEnabled(!atMax)
         renderSlots()
     }
+
+    #if os(tvOS)
+    private func beginCoordinatorNameEntry(slot idx: Int, current: String) {
+        manager.setJoinEnabled(false)
+        renderSlots()
+        NameEntryCoordinator.shared.requestName(forSlot: idx, current: current) { [weak self] entered in
+            guard let self else { return }
+            let trimmed = entered?.trimmingCharacters(in: .whitespaces) ?? ""
+            let final = trimmed.isEmpty ? current : trimmed
+            UserDefaults.standard.set(final, forKey: "player_name_\(idx)")
+            let atMax = self.manager.slots.count >= ControllerManager.maxPlayers
+            self.manager.setJoinEnabled(!atMax)
+            self.renderSlots()
+        }
+    }
+    #endif
 
     private func makeIconNode() -> SKNode {
         let container = SKNode()
