@@ -51,7 +51,7 @@ final class AudioEngine {
     // MARK: - Setup
 
     private func configureSession() {
-        #if os(iOS)
+        #if os(iOS) || os(tvOS)
         do {
             try AVAudioSession.sharedInstance().setCategory(.ambient, mode: .default)
             try AVAudioSession.sharedInstance().setActive(true)

@@ -1,4 +1,5 @@
 import SpriteKit
+import GameController
 
 final class GameScene: SKScene {
     private let manager = ControllerManager.shared
@@ -13,6 +14,8 @@ final class GameScene: SKScene {
     private var powerUps: [PowerUp] = []
     private var mines: [Mine] = []
     private var alienMonsters: [AlienMonster] = []
+    private var rocks: [Rock] = []
+    private var snakes: [Snake] = []
 
     private var spawner: Spawner!
     private var lastUpdateTime: TimeInterval = 0
@@ -20,18 +23,35 @@ final class GameScene: SKScene {
     private var initialShipCount: Int = 0
     private var transitioning = false
 
+    // Level state machine.
+    private enum LevelState { case transitioning, spawning }
+    private var currentLevel: Int = 1
+    private var levelState: LevelState = .transitioning
+    private var transitionTime: TimeInterval = 0
+    private var bannerStarted: Bool = false
+    private var flashStarted: Bool = false
+
+    private static let transitionCalm:   TimeInterval = 0.6
+    private static let transitionBanner: TimeInterval = 1.6
+    private static let transitionFlash:  TimeInterval = 1.0
+
     private let hudLayer = SKNode()
     private var scoreLabels: [SKLabelNode] = []
 
-    private var playBounds: CGRect {
-        CGRect(x: 0, y: 0, width: size.width, height: size.height - Self.hudHeight)
-    }
+    private var safeInsets: UIEdgeInsets { view?.safeAreaInsets ?? .zero }
 
-    override var canBecomeFirstResponder: Bool { true }
+    var playBounds: CGRect {
+        let insets = safeInsets
+        return CGRect(
+            x: insets.left,
+            y: insets.bottom,
+            width: size.width - insets.left - insets.right,
+            height: size.height - insets.top - insets.bottom - Self.hudHeight
+        )
+    }
 
     override func didMove(to view: SKView) {
         backgroundColor = .black
-        becomeFirstResponder()
         spawner = Spawner(bounds: playBounds, glowParent: self)
 
         spawnShipsForJoinedPlayers(in: playBounds)
@@ -42,20 +62,37 @@ final class GameScene: SKScene {
         updateHUD()
 
         manager.onStartPressed = nil
+
+        KeyboardManager.shared.onKeyDown = { [weak self] code in
+            self?.handleKeyDown(code)
+        }
+
+        #if DEBUG
+        currentLevel = max(1, DebugSettings.startLevel)
+        #else
+        currentLevel = 1
+        #endif
+        levelState = .transitioning
+        transitionTime = 0
+        bannerStarted = false
+        flashStarted = false
     }
 
     override func willMove(from view: SKView) {
         audio.stopAllThrust()
+        manager.keyboardInput.releaseAll()
     }
 
-    override func pressesBegan(_ presses: Set<UIPress>, with event: UIPressesEvent?) {
-        for press in presses {
-            if press.key?.keyCode == .keyboardEscape {
-                MacFullScreen.exitIfActive()
-                return
-            }
+    private func handleKeyDown(_ code: GCKeyCode) {
+        switch code {
+        case .escape:    MacFullScreen.exitIfActive()
+        case .spacebar:  manager.keyboardInput.spaceDown()
+        default: break
         }
-        super.pressesBegan(presses, with: event)
+
+        #if DEBUG
+        debugHandleKey(code)
+        #endif
     }
 
     override func didChangeSize(_ oldSize: CGSize) {
@@ -84,6 +121,12 @@ final class GameScene: SKScene {
         for pu in powerUps { pu.update(dt: dt) }
         for m in mines { m.update(dt: dt) }
         for a in alienMonsters { a.update(dt: dt) }
+        for r in rocks { r.update(dt: dt) }
+        for s in snakes {
+            s.target = nearestShip(to: s.position)?.position
+            s.update(dt: dt)
+            if s.alive { s.wrap(in: bounds) }
+        }
         Movement.stepWrapping(alienMonsters, dt: dt, bounds: bounds)
         fireAlienMonstersIfReady()
 
@@ -94,19 +137,28 @@ final class GameScene: SKScene {
         Movement.stepWrapping(ufos,     dt: dt, bounds: bounds)
         Movement.stepBounded(bullets,  dt: dt, bounds: bounds)
         Movement.stepBounded(powerUps, dt: dt, bounds: bounds)
+        Movement.stepBounded(rocks, dt: dt, bounds: bounds.insetBy(dx: -60, dy: -60))
+
+        let pvpEnabled = (levelState == .spawning)
 
         Collision.resolve(ships: ships, asteroids: asteroids, ufos: ufos,
                           alienMonsters: alienMonsters,
-                          bullets: bullets, powerUps: powerUps)
+                          bullets: bullets, powerUps: powerUps,
+                          rocks: rocks, mines: mines,
+                          snakes: snakes,
+                          shipsCollideWithEachOther: pvpEnabled)
 
-        for s in ships where s.alive { s.syncVisuals() }
-
-        let spawns = spawner.update(dt: dt)
-        for s in spawns { spawn(s) }
+        if levelState == .transitioning {
+            handleLevelTransition(dt: dt)
+        } else {
+            let spawns = spawner.update(dt: dt)
+            for s in spawns { spawn(s) }
+        }
 
         reapDead()
         updateHUD()
         checkEndCondition()
+        checkLevelComplete()
     }
 
     // MARK: - Setup
@@ -133,7 +185,6 @@ final class GameScene: SKScene {
                             heading: heading)
             ships.append(ship)
             addChild(ship.node)
-            addChild(ship.reloadIndicator)
         }
     }
 
@@ -150,12 +201,18 @@ final class GameScene: SKScene {
             let input = slot.snapshot()
             ship.turnInput = input.turn
             ship.thrusting = input.thrust
+            ship.braking   = input.brake
             audio.setThrust(playerIndex: slot.index, on: input.thrust)
 
-            if input.firePressedThisFrame, let bullet = ship.fire() {
-                bullets.append(bullet)
-                addChild(bullet.node)
-                audio.playShoot()
+            if input.firePressedThisFrame {
+                let newBullets = ship.fire()
+                if !newBullets.isEmpty {
+                    for b in newBullets {
+                        bullets.append(b)
+                        addChild(b.node)
+                    }
+                    audio.playShoot()
+                }
             }
         }
     }
@@ -192,7 +249,7 @@ final class GameScene: SKScene {
         return best
     }
 
-    private func spawn(_ s: Spawn) {
+    func spawn(_ s: Spawn) {
         switch s.kind {
         case .asteroid(let radius, let seed):
             let asteroid = Asteroid(position: s.position,
@@ -217,6 +274,17 @@ final class GameScene: SKScene {
             let alien = AlienMonster(position: s.position, baseHeading: baseHeading, seed: seed)
             alienMonsters.append(alien)
             addChild(alien.node)
+        case .rock(let radius, let seed):
+            let rock = Rock(position: s.position,
+                            velocity: s.velocity,
+                            radius: radius,
+                            seed: seed)
+            rocks.append(rock)
+            addChild(rock.node)
+        case .snake(let baseHeading, let seed):
+            let snake = Snake(position: s.position, baseHeading: baseHeading, seed: seed)
+            snakes.append(snake)
+            addChild(snake.node)
         }
     }
 
@@ -231,7 +299,11 @@ final class GameScene: SKScene {
                 audio.playExplosion()
                 for ship in ships where ship.alive {
                     if ship.position.distance(to: dead.position) < Mine.explosionRadius {
-                        if ship.hasShield { ship.hasShield = false } else { ship.alive = false }
+                        if ship.shieldCount > 0 {
+                            ship.shieldCount -= 1
+                        } else {
+                            ship.alive = false
+                        }
                     }
                 }
                 for ufo in ufos where ufo.alive {
@@ -259,7 +331,6 @@ final class GameScene: SKScene {
                 audio.playExplosion()
                 audio.setThrust(playerIndex: ship.playerIndex, on: false)
                 ship.node.removeFromParent()
-                ship.reloadIndicator.removeFromParent()
             }
         }
 
@@ -298,6 +369,86 @@ final class GameScene: SKScene {
             }
             return false
         }
+        rocks.removeAll { dead in
+            if !dead.alive { dead.node.removeFromParent(); return true }
+            return false
+        }
+        snakes.removeAll { dead in
+            if !dead.alive {
+                Explosion.burst(at: dead.position,
+                                radius: Snake.headRadius * 1.4,
+                                color: Snake.bodyColor,
+                                parent: self)
+                audio.playExplosion()
+                dead.node.removeFromParent()
+                return true
+            }
+            return false
+        }
+    }
+
+    // MARK: - Level transitions
+
+    private func checkLevelComplete() {
+        guard levelState == .spawning, !transitioning else { return }
+        let killTargetsAlive = !asteroids.isEmpty || !ufos.isEmpty
+            || !alienMonsters.isEmpty || !snakes.isEmpty
+        if !spawner.hasMoreSpawns && !killTargetsAlive {
+            currentLevel += 1
+            beginLevelTransition()
+        }
+    }
+
+    private func beginLevelTransition() {
+        levelState = .transitioning
+        transitionTime = 0
+        bannerStarted = false
+        flashStarted = false
+
+        // Wipe lingering hazards so the transition is a clean slate.
+        for b in bullets { b.alive = false }
+        for m in mines   { m.alive = false }   // mine.exploded stays false → no blast
+        for r in rocks   { r.alive = false }
+    }
+
+    private func handleLevelTransition(dt: TimeInterval) {
+        transitionTime += dt
+        let calm      = Self.transitionCalm
+        let bannerEnd = calm + Self.transitionBanner
+        let flashEnd  = bannerEnd + Self.transitionFlash
+
+        if !bannerStarted, transitionTime >= calm {
+            bannerStarted = true
+            let label = SKLabelNode(text: "LEVEL \(currentLevel)")
+            label.fontName = "AvenirNext-Bold"
+            label.fontSize = 56
+            label.fontColor = .white
+            label.position = CGPoint(x: size.width / 2, y: size.height / 2)
+            label.alpha = 0
+            addChild(label)
+            label.run(.sequence([
+                .fadeIn(withDuration: 0.4),
+                .wait(forDuration: max(0, Self.transitionBanner - 0.8)),
+                .fadeOut(withDuration: 0.4),
+                .removeFromParent()
+            ]))
+        }
+
+        if !flashStarted, transitionTime >= bannerEnd {
+            flashStarted = true
+            let cycle = SKAction.sequence([
+                .fadeAlpha(to: 0.3, duration: 0.1),
+                .fadeAlpha(to: 1.0, duration: 0.1)
+            ])
+            for ship in ships where ship.alive {
+                ship.node.run(.repeat(cycle, count: 5))
+            }
+        }
+
+        if transitionTime >= flashEnd {
+            levelState = .spawning
+            spawner.startLevel(LevelRoster.config(for: currentLevel))
+        }
     }
 
     // MARK: - End condition
@@ -334,7 +485,7 @@ final class GameScene: SKScene {
         let count = scoreLabels.count
         guard count > 0 else { return }
         let segmentWidth = size.width / CGFloat(count)
-        let y = size.height - Self.hudHeight / 2
+        let y = size.height - safeInsets.top - Self.hudHeight / 2
         for (i, label) in scoreLabels.enumerated() {
             label.position = CGPoint(x: segmentWidth * (CGFloat(i) + 0.5), y: y)
         }
@@ -353,13 +504,17 @@ final class GameScene: SKScene {
         transitioning = true
         audio.stopAllThrust()
 
-        let topScore = ships.map(\.score).max() ?? 0
-        HighScore.recordIfHigher(topScore)
+        for ship in ships {
+            let name = UserDefaults.standard.string(forKey: "player_name_\(ship.playerIndex)")
+                ?? "P\(ship.playerIndex + 1)"
+            HighScore.record(name: name, score: ship.score, level: currentLevel)
+        }
 
+        let topScore = ships.map(\.score).max() ?? 0
         let result: GameOverScene.Result = winner.map {
             let name = UserDefaults.standard.string(forKey: "player_name_\($0.playerIndex)") ?? "P\($0.playerIndex + 1)"
-            return .winner(color: $0.color, label: "\(name) WINS")
-        } ?? .gameOver
+            return .winner(color: $0.color, label: "\(name) WINS", score: $0.score)
+        } ?? .gameOver(topScore: topScore)
 
         let next = GameOverScene(size: size, result: result)
         next.scaleMode = scaleMode
