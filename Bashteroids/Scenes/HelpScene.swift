@@ -10,6 +10,11 @@ final class HelpScene: SKScene {
     private let labelColor  = SKColor.white
     private let valueColor  = SKColor(white: 0.65, alpha: 1)
 
+    private enum Glyph {
+        case shield, dualCanon, boost, minelayer
+        case asteroid, ufo, alien, snake, mine, rock, wallStrong, wallWeak
+    }
+
     override func didMove(to view: SKView) {
         backgroundColor = .black
 
@@ -26,26 +31,29 @@ final class HelpScene: SKScene {
         title.fontName = "AvenirNext-Bold"
         title.fontSize = 28
         title.fontColor = goldColor
-        title.position = CGPoint(x: size.width / 2, y: size.height * 0.93)
+        title.position = CGPoint(x: size.width / 2, y: size.height * 0.88)
         addChild(title)
 
         let centerX = size.width / 2
-        let labelGap: CGFloat = 30        // distance from center to the label's inner edge
-        let valueGap: CGFloat = 130       // distance from center to the value's inner edge
-        let leftLabelX  = centerX - labelGap
-        let leftValueX  = centerX - valueGap
-        let rightLabelX = centerX + labelGap
-        let rightValueX = centerX + valueGap
+        let iconOffset:  CGFloat = 28
+        let labelOffset: CGFloat = 60
+        let valueOffset: CGFloat = 200
+        let leftIconX   = centerX - iconOffset
+        let leftLabelX  = centerX - labelOffset
+        let leftValueX  = centerX - valueOffset
+        let rightIconX  = centerX + iconOffset
+        let rightLabelX = centerX + labelOffset
+        let rightValueX = centerX + valueOffset
 
-        // 2x2 grid: input controls on top (CONTROLLER left, KEYBOARD right —
-        // equal heights), reference cards below (POWERUPS left, ENEMIES right).
-        let topRowY    = size.height * 0.85
-        let bottomRowY = size.height * 0.45
+        // Top row: input controls. Bottom row: reference cards with icons.
+        // 2-row vertical gap between the two rows.
+        let topRowY = size.height * 0.78
+        let bottomRowY = topRowY - (30 + 7 * 20) - (2 * 20)
 
         renderControllerSection(labelX: leftLabelX,  valueX: leftValueX,  topY: topRowY)
         renderKeyboardSection(  labelX: rightLabelX, valueX: rightValueX, topY: topRowY)
-        renderPowerupsSection(  labelX: leftLabelX,  valueX: leftValueX,  topY: bottomRowY)
-        renderEnemiesSection(   labelX: rightLabelX, valueX: rightValueX, topY: bottomRowY)
+        renderPowerupsSection(  labelX: leftLabelX,  valueX: leftValueX,  iconX: leftIconX,  topY: bottomRowY)
+        renderEnemiesSection(   labelX: rightLabelX, valueX: rightValueX, iconX: rightIconX, topY: bottomRowY)
 
         KeyboardManager.shared.onKeyDown = { [weak self] code in
             self?.handleKeyDown(code)
@@ -90,35 +98,39 @@ final class HelpScene: SKScene {
         }
     }
 
-    private func renderPowerupsSection(labelX: CGFloat, valueX: CGFloat, topY: CGFloat) {
+    private func renderPowerupsSection(labelX: CGFloat, valueX: CGFloat, iconX: CGFloat, topY: CGFloat) {
         var y = topY
         addHeading("POWERUPS", x: labelX, y: y, alignment: .right); y -= 30
-        for (label, value) in [
-            ("Shield",     "Absorbs 1 hit. Stacks 2x."),
-            ("Dual-canon", "Faster fire, stacks to quad."),
-            ("Boost",      "+43% / +79% max speed."),
-            ("Minelayer",  "Place mine, re-press to blow.")
-        ] {
+        let rows: [(Glyph, String, String)] = [
+            (.shield,    "Shield",     "Absorbs 1 hit. Stacks 2x."),
+            (.dualCanon, "Dual-canon", "Faster fire, stacks to quad."),
+            (.boost,     "Boost",      "+43% / +79% max speed."),
+            (.minelayer, "Minelayer",  "Place mine, re-press to blow.")
+        ]
+        for (glyph, label, value) in rows {
             addLeftRow(label: label, value: value, labelX: labelX, valueX: valueX, y: y)
-            y -= 22
+            placeGlyph(glyph, x: iconX, y: y - 10)
+            y -= 24
         }
     }
 
-    private func renderEnemiesSection(labelX: CGFloat, valueX: CGFloat, topY: CGFloat) {
+    private func renderEnemiesSection(labelX: CGFloat, valueX: CGFloat, iconX: CGFloat, topY: CGFloat) {
         var y = topY
         addHeading("ENEMIES", x: labelX, y: y, alignment: .left); y -= 30
-        for (label, value) in [
-            ("Asteroid",     "1 hit, drifts, wraps."),
-            ("UFO",          "1 hit, fires aimed bullets."),
-            ("Alien",        "2 hits, short laser."),
-            ("Snake",        "4 hits, homes on you."),
-            ("Mine",         "Flashes 6 s, 140 px blast."),
-            ("Rock",         "Indestructible."),
-            ("Wall (gray)",  "BATTLE: indestructible."),
-            ("Wall (orange)","BATTLE: 5 hp / chunk.")
-        ] {
+        let rows: [(Glyph, String, String)] = [
+            (.asteroid,   "Asteroid",      "1 hit, drifts, wraps."),
+            (.ufo,        "UFO",           "1 hit, fires aimed bullets."),
+            (.alien,      "Alien",         "2 hits, short laser."),
+            (.snake,      "Snake",         "4 hits, homes on you."),
+            (.mine,       "Mine",          "Flashes 6 s, 140 px blast."),
+            (.rock,       "Rock",          "Indestructible."),
+            (.wallStrong, "Wall (gray)",   "BATTLE: indestructible."),
+            (.wallWeak,   "Wall (orange)", "BATTLE: 5 hp / chunk.")
+        ]
+        for (glyph, label, value) in rows {
             addRightRow(label: label, value: value, labelX: labelX, valueX: valueX, y: y)
-            y -= 20
+            placeGlyph(glyph, x: iconX, y: y - 10)
+            y -= 24
         }
     }
 
@@ -171,6 +183,103 @@ final class HelpScene: SKScene {
         val.verticalAlignmentMode = .top
         val.position = CGPoint(x: valueX, y: y)
         addChild(val)
+    }
+
+    private func placeGlyph(_ kind: Glyph, x: CGFloat, y: CGFloat) {
+        let node = makeGlyphNode(kind)
+        node.position = CGPoint(x: x, y: y)
+        addChild(node)
+    }
+
+    private func makeGlyphNode(_ kind: Glyph) -> SKNode {
+        switch kind {
+        case .shield:
+            let n = Shapes.powerUp(kind: .shield)
+            n.setScale(0.85)
+            return n
+        case .dualCanon:
+            return Shapes.powerUp(kind: .dualCanon)
+        case .boost:
+            return Shapes.powerUp(kind: .boost)
+        case .minelayer:
+            return Shapes.powerUp(kind: .minelayer)
+        case .asteroid:
+            return Shapes.asteroid(radius: 11, seed: 1)
+        case .ufo:
+            let n = Shapes.ufo()
+            n.setScale(0.7)
+            return n
+        case .alien:
+            let n = Shapes.alienMonster()
+            n.setScale(0.7)
+            return n
+        case .snake:
+            return makeSnakeHead()
+        case .mine:
+            let n = Shapes.mine()
+            n.setScale(0.55)
+            return n
+        case .rock:
+            return Shapes.rock(radius: 11, seed: 1)
+        case .wallStrong:
+            return makeWallChip(color: SKColor(red: 0.55, green: 0.55, blue: 0.55, alpha: 1))
+        case .wallWeak:
+            return makeWallChip(color: SKColor(red: 0.85, green: 0.55, blue: 0.20, alpha: 1))
+        }
+    }
+
+    private func makeSnakeHead() -> SKShapeNode {
+        let snakeCyan = SKColor(red: 0.10, green: 0.95, blue: 0.95, alpha: 1)
+        let hl: CGFloat = 11
+        let hw: CGFloat = 7
+        let inset: CGFloat = 3
+        let path = CGMutablePath()
+        path.move(to:    CGPoint(x: -hl,         y:  hw - inset))
+        path.addLine(to: CGPoint(x: -hl + inset, y:  hw))
+        path.addLine(to: CGPoint(x:  hl - inset, y:  hw))
+        path.addLine(to: CGPoint(x:  hl,         y:  hw - inset))
+        path.addLine(to: CGPoint(x:  hl,         y: -hw + inset))
+        path.addLine(to: CGPoint(x:  hl - inset, y: -hw))
+        path.addLine(to: CGPoint(x: -hl + inset, y: -hw))
+        path.addLine(to: CGPoint(x: -hl,         y: -hw + inset))
+        path.closeSubpath()
+
+        let head = SKShapeNode(path: path)
+        head.strokeColor = snakeCyan
+        head.fillColor   = .clear
+        head.lineWidth   = 1.5
+        head.lineJoin    = .miter
+        head.isAntialiased = true
+
+        // Two slit eyes — same shape pattern as in-game Snake.
+        for sign: CGFloat in [1, -1] {
+            let eyePath = CGMutablePath()
+            let yMid: CGFloat = sign * 3
+            eyePath.move(to: CGPoint(x: 1, y: yMid - sign * 1.0))
+            eyePath.addLine(to: CGPoint(x: 5, y: yMid + sign * 1.2))
+            eyePath.addLine(to: CGPoint(x: 7, y: yMid + sign * 0.4))
+            eyePath.addLine(to: CGPoint(x: 3, y: yMid - sign * 1.6))
+            eyePath.closeSubpath()
+            let eye = SKShapeNode(path: eyePath)
+            eye.strokeColor = snakeCyan
+            eye.fillColor   = snakeCyan
+            eye.lineWidth   = 1
+            head.addChild(eye)
+        }
+
+        return head
+    }
+
+    private func makeWallChip(color: SKColor) -> SKShapeNode {
+        let path = CGMutablePath()
+        path.addRect(CGRect(x: -11, y: -4, width: 22, height: 8))
+        let n = SKShapeNode(path: path)
+        n.strokeColor = color
+        n.fillColor   = .clear
+        n.lineWidth   = 1.5
+        n.lineJoin    = .miter
+        n.isAntialiased = true
+        return n
     }
 
     private func handleKeyDown(_ code: GCKeyCode) {
