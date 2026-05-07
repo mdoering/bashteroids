@@ -1,5 +1,6 @@
 import SpriteKit
 import GameController
+import UIKit
 
 final class HelpScene: SKScene {
     private let manager = ControllerManager.shared
