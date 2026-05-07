@@ -65,7 +65,7 @@ Open the project in Xcode, set your team in *Signing & Capabilities*, change the
 Pick the mode and starting level on the title screen using the D-pad on any joined controller (or `M` and arrow up/down on a keyboard). Both selections persist between launches.
 
 - **Survival** (default): the existing single-player or co-op mode against asteroids, UFOs, alien monsters, snakes, mines, and rocks. Score-based; a run lives in the leaderboard.
-- **Battle** (2+ players required): a deathmatch round inside an arena enclosed by destructible vector walls. No enemies, sparse powerups, last ship standing wins.
+- **Battle** (2+ players required): last-ship-standing deathmatch. The arena is dotted with **strong walls** (warm gray, indestructible — bullets die, ships bounce off losing 50% of their normal-component velocity) and **weak walls** (warm orange, made of 4 chunks at 5 hp each — bullets erode them visually as they take damage). Ship-vs-ship rules from survival apply: shields absorb hits, otherwise contact kills both. No enemies spawn; powerups drip every 30-60s (60% shield, 20% dual-canon, 20% boost). Round ends when only one ship is left (or zero — that's a draw).
 
 Levels 1–9 control how dense the spawn / wall set is. The default level is whatever level you last reached.
 
@@ -90,6 +90,8 @@ The screen is populated by a fixed cast. Entities that enter from off-screen are
 | **Rock**   | orange    | **indestructible** | Solid filled polygon. Crosses the screen once in a straight line and despawns off the far edge. Anything it touches dies — asteroids, bullets, UFOs, aliens, snakes, power-ups, and ships. **Shields do not block a rock.** Triggers mines on contact. Joins from level 6. | —     |
 | **Bullet** | —         | —             | Short laser projectile. Player bullets travel until they leave the play area. Alien-monster bullets expire after 140 px to keep their fire short-range. Bullets die on any hit.            | —     |
 | **Other ship** (PvP) | — | 1 hit       | Treated as a target by other players' bullets and ramming. See **Power-ups → Shield** for shield-vs-shield rules.                       | 20    |
+| **Wall (strong)** | — | indestructible | Warm-gray vector polygon. Absorbs all bullets. Ships bounce off, losing 50% of their normal-component velocity per bounce. Only spawns in BATTLE mode. | — |
+| **Wall (weak)** | — | 5 hp × 4 chunks | Warm-orange vector polygon split into 4 wedges. Each chunk takes 5 bullet hits, eroding visually as it loses hp. Once a chunk hits 0 hp it vanishes; once all chunks are gone the wall is destroyed. Ships bounce as for strong walls (no chunk damage from the bounce). Only spawns in BATTLE mode. | — |
 
 ## Power-ups
 
