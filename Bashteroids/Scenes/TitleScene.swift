@@ -23,11 +23,14 @@ final class TitleScene: SKScene {
     override func didMove(to view: SKView) {
         backgroundColor = .black
 
-        // Poster background — fit-to-height, letterboxed on landscape displays.
+        // Poster background — aspect-fill so the landscape image covers the
+        // whole screen on any aspect ratio (iPad 4:3 crops sides slightly,
+        // 16:9 displays fit exactly).
         let posterTexture = SKTexture(imageNamed: "Splash")
-        let posterAspect = posterTexture.size().width / max(posterTexture.size().height, 1)
+        let imgSize = posterTexture.size()
+        let scale = max(size.width / imgSize.width, size.height / imgSize.height)
         let poster = SKSpriteNode(texture: posterTexture)
-        poster.size = CGSize(width: size.height * posterAspect, height: size.height)
+        poster.size = CGSize(width: imgSize.width * scale, height: imgSize.height * scale)
         poster.position = CGPoint(x: size.width / 2, y: size.height / 2)
         poster.zPosition = -1
         addChild(poster)
