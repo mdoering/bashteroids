@@ -608,8 +608,14 @@ final class GameScene: SKScene {
             result = .gameOver(topScore: topScore)
         }
 
-        let next = GameOverScene(size: size, result: result)
-        next.scaleMode = scaleMode
-        view?.presentScene(next, transition: .fade(withDuration: 0.5))
+        run(.sequence([
+            .wait(forDuration: 1.2),
+            .run { [weak self] in
+                guard let self else { return }
+                let next = GameOverScene(size: self.size, result: result)
+                next.scaleMode = self.scaleMode
+                self.view?.presentScene(next, transition: .fade(withDuration: 0.5))
+            }
+        ]))
     }
 }
