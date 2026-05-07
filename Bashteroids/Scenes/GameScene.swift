@@ -174,7 +174,8 @@ final class GameScene: SKScene {
                           rocks: rocks, mines: mines,
                           snakes: snakes,
                           walls: walls,
-                          shipsCollideWithEachOther: pvpEnabled)
+                          shipsCollideWithEachOther: pvpEnabled,
+                          contactParent: self)
 
         if mode == .battle {
             _ = spawner.update(dt: dt)  // advance elapsed only
