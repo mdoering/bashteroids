@@ -10,7 +10,7 @@ struct NameEntryOverlay: View {
         ZStack {
             Color.black.opacity(0.85).ignoresSafeArea()
 
-            VStack(spacing: 40) {
+            VStack(spacing: 30) {
                 Text("PLAYER \((coordinator.request?.slot ?? 0) + 1) NAME")
                     .font(.system(size: 36, weight: .bold))
                     .foregroundStyle(.white)
@@ -26,6 +26,22 @@ struct NameEntryOverlay: View {
                     .cornerRadius(8)
                     .focused($focused)
                     .onSubmit { submit() }
+
+                let recents = Array(RecentNames.all.prefix(4))
+                if !recents.isEmpty {
+                    VStack(spacing: 8) {
+                        Text("RECENT")
+                            .font(.system(size: 18, weight: .semibold))
+                            .foregroundStyle(.gray)
+                        ForEach(recents, id: \.self) { recent in
+                            Button(recent) {
+                                name = recent
+                                submit()
+                            }
+                            .font(.system(size: 28))
+                        }
+                    }
+                }
 
                 HStack(spacing: 24) {
                     Button("Cancel") { coordinator.cancel() }
