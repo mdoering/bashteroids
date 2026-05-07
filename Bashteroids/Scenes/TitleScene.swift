@@ -358,9 +358,10 @@ final class TitleScene: SKScene {
 
         if activeNameSlot == nil {
             switch code {
-            case .keyM:      cycleMode(by: 1); return
-            case .upArrow:   cycleLevel(by: 1); return
-            case .downArrow: cycleLevel(by: -1); return
+            case .keyM, .rightArrow: cycleMode(by:  1); return
+            case .leftArrow:         cycleMode(by: -1); return
+            case .upArrow:           cycleLevel(by:  1); return
+            case .downArrow:         cycleLevel(by: -1); return
             default: break
             }
 
