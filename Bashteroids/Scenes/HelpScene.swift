@@ -9,7 +9,6 @@ final class HelpScene: SKScene {
     private let goldColor   = SKColor(red: 245/255, green: 194/255, blue: 66/255, alpha: 1)
     private let labelColor  = SKColor.white
     private let valueColor  = SKColor(white: 0.65, alpha: 1)
-    private let dimColor    = SKColor(white: 0.45, alpha: 1)
 
     override func didMove(to view: SKView) {
         backgroundColor = .black
@@ -21,20 +20,18 @@ final class HelpScene: SKScene {
         title.position = CGPoint(x: size.width / 2, y: size.height * 0.93)
         addChild(title)
 
-        let leftX  = size.width * 0.10
-        let rightX = size.width * 0.55
-        let topY   = size.height * 0.85
+        let centerX = size.width / 2
+        let labelGap: CGFloat = 30        // distance from center to the label's inner edge
+        let valueGap: CGFloat = 130       // distance from center to the value's inner edge
+        let leftLabelX  = centerX - labelGap
+        let leftValueX  = centerX - valueGap
+        let rightLabelX = centerX + labelGap
+        let rightValueX = centerX + valueGap
 
-        renderControls(originX: leftX, topY: topY)
-        renderPowerups(originX: rightX, topY: topY)
-        renderEnemies(originX: rightX, topY: topY - 240)
+        let topY = size.height * 0.85
 
-        let hint = SKLabelNode(text: "PRESS ANY BUTTON / SPACE / ESC TO RETURN")
-        hint.fontName = "AvenirNext-Regular"
-        hint.fontSize = 14
-        hint.fontColor = dimColor
-        hint.position = CGPoint(x: size.width / 2, y: size.height * 0.05)
-        addChild(hint)
+        renderLeftColumn(labelX: leftLabelX, valueX: leftValueX, topY: topY)
+        renderRightColumn(labelX: rightLabelX, valueX: rightValueX, topY: topY)
 
         KeyboardManager.shared.onKeyDown = { [weak self] code in
             self?.handleKeyDown(code)
@@ -45,11 +42,9 @@ final class HelpScene: SKScene {
         KeyboardManager.shared.onKeyDown = nil
     }
 
-    private func renderControls(originX: CGFloat, topY: CGFloat) {
+    private func renderLeftColumn(labelX: CGFloat, valueX: CGFloat, topY: CGFloat) {
         var y = topY
-        addHeading("CONTROLS", x: originX, y: y); y -= 28
-
-        addHeading("KEYBOARD", x: originX, y: y, small: true); y -= 22
+        addHeading("KEYBOARD", x: labelX, y: y, alignment: .right); y -= 30
         for (label, value) in [
             ("Turn",      "\u{2190} / \u{2192}"),
             ("Thrust",    "\u{2191}"),
@@ -59,11 +54,12 @@ final class HelpScene: SKScene {
             ("Join",      "A"),
             ("Start",     "Space / Enter")
         ] {
-            addRow(label: label, value: value, x: originX, y: y); y -= 18
+            addLeftRow(label: label, value: value, labelX: labelX, valueX: valueX, y: y)
+            y -= 20
         }
 
-        y -= 10
-        addHeading("CONTROLLER", x: originX, y: y, small: true); y -= 22
+        y -= 18
+        addHeading("CONTROLLER", x: labelX, y: y, alignment: .right); y -= 30
         for (label, value) in [
             ("Turn",      "Left stick / D-pad"),
             ("Thrust",    "A / R-trigger"),
@@ -73,28 +69,26 @@ final class HelpScene: SKScene {
             ("Join",      "A"),
             ("Start",     "Menu / X / Play-Pause")
         ] {
-            addRow(label: label, value: value, x: originX, y: y); y -= 18
+            addLeftRow(label: label, value: value, labelX: labelX, valueX: valueX, y: y)
+            y -= 20
         }
     }
 
-    private func renderPowerups(originX: CGFloat, topY: CGFloat) {
+    private func renderRightColumn(labelX: CGFloat, valueX: CGFloat, topY: CGFloat) {
         var y = topY
-        addHeading("POWERUPS", x: originX, y: y); y -= 28
-
+        addHeading("POWERUPS", x: labelX, y: y, alignment: .left); y -= 30
         for (label, value) in [
             ("Shield",     "Absorbs 1 hit. Stacks 2x."),
             ("Dual-canon", "Faster fire, stacks to quad."),
             ("Boost",      "+43% / +79% max speed."),
             ("Minelayer",  "Place mine, re-press to blow.")
         ] {
-            addRow(label: label, value: value, x: originX, y: y); y -= 22
+            addRightRow(label: label, value: value, labelX: labelX, valueX: valueX, y: y)
+            y -= 22
         }
-    }
 
-    private func renderEnemies(originX: CGFloat, topY: CGFloat) {
-        var y = topY
-        addHeading("ENEMIES", x: originX, y: y); y -= 28
-
+        y -= 18
+        addHeading("ENEMIES", x: labelX, y: y, alignment: .left); y -= 30
         for (label, value) in [
             ("Asteroid",     "1 hit, drifts, wraps."),
             ("UFO",          "1 hit, fires aimed bullets."),
@@ -105,29 +99,50 @@ final class HelpScene: SKScene {
             ("Wall (gray)",  "BATTLE: indestructible."),
             ("Wall (orange)","BATTLE: 5 hp / chunk.")
         ] {
-            addRow(label: label, value: value, x: originX, y: y); y -= 18
+            addRightRow(label: label, value: value, labelX: labelX, valueX: valueX, y: y)
+            y -= 20
         }
     }
 
-    private func addHeading(_ text: String, x: CGFloat, y: CGFloat, small: Bool = false) {
+    private func addHeading(_ text: String, x: CGFloat, y: CGFloat, alignment: SKLabelHorizontalAlignmentMode) {
         let label = SKLabelNode(text: text)
         label.fontName = "AvenirNext-Bold"
-        label.fontSize = small ? 14 : 18
+        label.fontSize = 18
         label.fontColor = goldColor
-        label.horizontalAlignmentMode = .left
+        label.horizontalAlignmentMode = alignment
         label.verticalAlignmentMode = .top
         label.position = CGPoint(x: x, y: y)
         addChild(label)
     }
 
-    private func addRow(label: String, value: String, x: CGFloat, y: CGFloat) {
+    private func addLeftRow(label: String, value: String, labelX: CGFloat, valueX: CGFloat, y: CGFloat) {
+        let val = SKLabelNode(text: value)
+        val.fontName = "AvenirNext-Regular"
+        val.fontSize = 14
+        val.fontColor = valueColor
+        val.horizontalAlignmentMode = .right
+        val.verticalAlignmentMode = .top
+        val.position = CGPoint(x: valueX, y: y)
+        addChild(val)
+
+        let lbl = SKLabelNode(text: label)
+        lbl.fontName = "AvenirNext-Regular"
+        lbl.fontSize = 14
+        lbl.fontColor = labelColor
+        lbl.horizontalAlignmentMode = .right
+        lbl.verticalAlignmentMode = .top
+        lbl.position = CGPoint(x: labelX, y: y)
+        addChild(lbl)
+    }
+
+    private func addRightRow(label: String, value: String, labelX: CGFloat, valueX: CGFloat, y: CGFloat) {
         let lbl = SKLabelNode(text: label)
         lbl.fontName = "AvenirNext-Regular"
         lbl.fontSize = 14
         lbl.fontColor = labelColor
         lbl.horizontalAlignmentMode = .left
         lbl.verticalAlignmentMode = .top
-        lbl.position = CGPoint(x: x, y: y)
+        lbl.position = CGPoint(x: labelX, y: y)
         addChild(lbl)
 
         let val = SKLabelNode(text: value)
@@ -136,7 +151,7 @@ final class HelpScene: SKScene {
         val.fontColor = valueColor
         val.horizontalAlignmentMode = .left
         val.verticalAlignmentMode = .top
-        val.position = CGPoint(x: x + 130, y: y)
+        val.position = CGPoint(x: valueX, y: y)
         addChild(val)
     }
 
