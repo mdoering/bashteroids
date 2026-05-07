@@ -122,13 +122,6 @@ final class TitleScene: SKScene {
         addChild(mode)
         self.modeLabel = mode
 
-        let modeCaption = SKLabelNode(text: "MODE")
-        modeCaption.fontName = "AvenirNext-Regular"
-        modeCaption.fontSize = 12
-        modeCaption.fontColor = SKColor(white: 0.45, alpha: 1)
-        modeCaption.position = CGPoint(x: selectorX, y: modeY - 24)
-        addChild(modeCaption)
-
         let levelLeft = SKLabelNode(text: "<")
         levelLeft.fontName = "AvenirNext-Regular"
         levelLeft.fontSize = 22
@@ -149,13 +142,6 @@ final class TitleScene: SKScene {
         level.position = CGPoint(x: selectorX, y: levelY)
         addChild(level)
         self.levelLabel = level
-
-        let levelCaption = SKLabelNode(text: "LEVEL")
-        levelCaption.fontName = "AvenirNext-Regular"
-        levelCaption.fontSize = 12
-        levelCaption.fontColor = SKColor(white: 0.45, alpha: 1)
-        levelCaption.position = CGPoint(x: selectorX, y: levelY - 24)
-        addChild(levelCaption)
 
         let battleHint = SKLabelNode(text: "BATTLE NEEDS 2+ PLAYERS")
         battleHint.fontName = "AvenirNext-Regular"
@@ -523,7 +509,7 @@ final class TitleScene: SKScene {
         modeLabel.text = selectedMode == .survival ? "SURVIVAL" : "BATTLE"
         modeLabel.fontColor = battleAvailable ? TitleScene.accentGold : TitleScene.accentGoldDim
 
-        levelLabel.text = "L \(selectedLevel)"
+        levelLabel.text = "LEVEL \(selectedLevel)"
         levelLabel.fontColor = TitleScene.accentGold
 
         battleHintLabel.alpha = battleAvailable ? 0 : 1
