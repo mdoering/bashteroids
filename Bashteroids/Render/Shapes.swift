@@ -85,6 +85,40 @@ enum Shapes {
         return node
     }
 
+    /// Builds the local-coordinate vertices of an irregular hollow polygon
+    /// suitable for a wall. Same `seed` ⇒ same shape. Vertices are returned
+    /// CCW around the polygon centroid.
+    static func wallVertices(radius: CGFloat, seed: UInt64, count: Int = 9) -> [CGPoint] {
+        var rng = SeededGenerator(seed: seed)
+        var verts: [CGPoint] = []
+        verts.reserveCapacity(count)
+        for i in 0..<count {
+            let baseAngle = CGFloat(i) / CGFloat(count) * .pi * 2
+            let angleJitter = rng.cgFloat(in: -0.10...0.10)
+            let radiusJitter = rng.cgFloat(in: 0.85...1.10)
+            let r = radius * radiusJitter
+            let a = baseAngle + angleJitter
+            verts.append(CGPoint(x: r * cos(a), y: r * sin(a)))
+        }
+        return verts
+    }
+
+    /// SKShapeNode with a closed polygon path through `vertices`. Stroke only.
+    static func wallChunk(vertices: [CGPoint], color: SKColor) -> SKShapeNode {
+        let path = CGMutablePath()
+        for (i, v) in vertices.enumerated() {
+            if i == 0 { path.move(to: v) } else { path.addLine(to: v) }
+        }
+        path.closeSubpath()
+        let node = SKShapeNode(path: path)
+        node.strokeColor = color
+        node.fillColor   = .clear
+        node.lineWidth   = 1.5
+        node.lineJoin    = .miter
+        node.isAntialiased = true
+        return node
+    }
+
     // UFO: classic flying-saucer silhouette in line segments.
     static func ufo(scale: CGFloat = 1) -> SKShapeNode {
         let path = CGMutablePath()
