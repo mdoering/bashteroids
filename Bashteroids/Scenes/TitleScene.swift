@@ -2,8 +2,7 @@ import SpriteKit
 import GameController
 
 final class TitleScene: SKScene {
-    private static let accentGold     = SKColor(red: 245/255, green: 194/255, blue: 66/255, alpha: 1)
-    private static let accentGoldDim  = SKColor(red: 245/255, green: 194/255, blue: 66/255, alpha: 0.4)
+    private static let accentGold = SKColor(red: 245/255, green: 194/255, blue: 66/255, alpha: 1)
 
     private let manager = ControllerManager.shared
     private let slotsLayer = SKNode()
@@ -530,7 +529,7 @@ final class TitleScene: SKScene {
         }
 
         modeLabel.text = selectedMode == .survival ? "SURVIVAL" : "BATTLE"
-        modeLabel.fontColor = battleAvailable ? TitleScene.accentGold : TitleScene.accentGoldDim
+        modeLabel.fontColor = TitleScene.accentGold
 
         levelLabel.text = "LEVEL \(selectedLevel)"
         levelLabel.fontColor = TitleScene.accentGold
