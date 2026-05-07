@@ -363,6 +363,13 @@ final class TitleScene: SKScene {
             case .downArrow: cycleLevel(by: -1); return
             default: break
             }
+
+            #if DEBUG
+            if code == .keyD {
+                manager.claimDummy()
+                return
+            }
+            #endif
         }
 
         switch code {

@@ -33,6 +33,15 @@ final class PlayerSlot {
         self.keyboard = keyboard
     }
 
+    /// DEBUG: dummy slot with no input source. snapshot() returns the all-zero
+    /// PlayerInput so the ship sits still and ignores controllers/keyboards.
+    init(dummyIndex index: Int, color: SKColor) {
+        self.index = index
+        self.color = color
+        self.controller = nil
+        self.keyboard = nil
+    }
+
     deinit {
         removeFireHandler()
     }

@@ -140,6 +140,20 @@ final class ControllerManager {
         return slot
     }
 
+    #if DEBUG
+    /// Claim a dummy slot with no controller and no keyboard. The ship spawned
+    /// for it sits still and ignores all input — useful as a target.
+    @discardableResult
+    func claimDummy() -> PlayerSlot? {
+        guard slots.count < Self.maxPlayers else { return nil }
+        let index = slots.count
+        let slot = PlayerSlot(dummyIndex: index, color: Self.playerColors[index])
+        slots.append(slot)
+        onSlotsChanged?()
+        return slot
+    }
+    #endif
+
     @discardableResult
     private func claim(controller: GCController) -> PlayerSlot? {
         guard slots.count < Self.maxPlayers else { return nil }
