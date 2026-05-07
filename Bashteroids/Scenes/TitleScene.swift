@@ -237,6 +237,7 @@ final class TitleScene: SKScene {
     private func tryStart() {
         guard !transitioning, !manager.slots.isEmpty, activeNameSlot == nil else { return }
         if selectedMode == .battle && manager.slots.count < 2 {
+            flashBattleHint()
             return
         }
         transitioning = true
@@ -618,10 +619,26 @@ final class TitleScene: SKScene {
     }
 
     private func cycleMode(by delta: Int) {
-        let battleAvailable = manager.slots.count >= 2
-        if !battleAvailable { return }
         selectedMode = (selectedMode == .survival) ? .battle : .survival
         renderSelectors()
+    }
+
+    private func flashBattleHint() {
+        battleHintLabel.removeAllActions()
+        battleHintLabel.alpha = 1
+        let pulse = SKAction.sequence([
+            .group([
+                .scale(to: 1.15, duration: 0.12),
+                .colorize(with: SKColor(red: 1.0, green: 0.65, blue: 0.65, alpha: 1),
+                          colorBlendFactor: 1.0, duration: 0.12)
+            ]),
+            .group([
+                .scale(to: 1.0,  duration: 0.18),
+                .colorize(with: SKColor(red: 0.7, green: 0.4, blue: 0.4, alpha: 1),
+                          colorBlendFactor: 0.0, duration: 0.18)
+            ])
+        ])
+        battleHintLabel.run(pulse)
     }
 
     private func moveFocus(by delta: Int) {
