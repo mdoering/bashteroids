@@ -3,8 +3,7 @@ import GameController
 
 final class GameOverScene: SKScene {
     enum Result {
-        case gameOver(topScore: Int)
-        case winner(color: SKColor, label: String, score: Int)
+        case survivalEnd(lastPlayerName: String, lastPlayerColor: SKColor, totalScore: Int)
         case battleWinner(color: SKColor, name: String)
         case battleDraw
     }
@@ -45,12 +44,20 @@ final class GameOverScene: SKScene {
         backgroundColor = .black
 
         switch result {
-        case .gameOver(let s):
+        case .survivalEnd(let lastName, let lastColor, let totalScore):
             renderBanner(text: "GAME OVER", color: .white)
-            renderSubtitle(text: "SCORE  \(s)")
-        case .winner(let c, let label, let s):
-            renderBanner(text: label, color: c)
-            renderSubtitle(text: "SCORE  \(s)")
+            let scoreLabel = SKLabelNode(text: "TEAM SCORE: \(totalScore)")
+            scoreLabel.fontName = "AvenirNext-Bold"
+            scoreLabel.fontSize = 32
+            scoreLabel.fontColor = SKColor(red: 245/255, green: 194/255, blue: 66/255, alpha: 1)
+            scoreLabel.position = CGPoint(x: size.width / 2, y: size.height * 0.45)
+            addChild(scoreLabel)
+            let footer = SKLabelNode(text: "\(lastName) SURVIVED LONGEST")
+            footer.fontName = "AvenirNext-Regular"
+            footer.fontSize = 22
+            footer.fontColor = lastColor
+            footer.position = CGPoint(x: size.width / 2, y: size.height * 0.39)
+            addChild(footer)
         case .battleWinner(let c, let name):
             renderBanner(text: "\(name) WINS", color: c)
             let ship = Shapes.shipV(color: c, scale: 2.5)

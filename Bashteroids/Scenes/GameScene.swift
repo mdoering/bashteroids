@@ -24,6 +24,8 @@ final class GameScene: SKScene {
 
     private var initialShipCount: Int = 0
     private var transitioning = false
+    private var deathTickCounter: Int = 0
+    private var shipDeathTick: [Int: Int] = [:]
 
     // Level state machine.
     private enum LevelState { case transitioning, spawning }
@@ -133,6 +135,7 @@ final class GameScene: SKScene {
         lastUpdateTime = currentTime
         guard dt > 0, !transitioning else { return }
 
+        deathTickCounter += 1
         let bounds = playBounds
 
         applyInputs()
@@ -431,6 +434,9 @@ final class GameScene: SKScene {
 
         for ship in ships where !ship.alive {
             if ship.node.parent != nil {
+                if shipDeathTick[ship.playerIndex] == nil {
+                    shipDeathTick[ship.playerIndex] = deathTickCounter
+                }
                 Explosion.burst(at: ship.position,
                                 radius: ship.radius * 1.4,
                                 color: ship.color,
@@ -569,10 +575,16 @@ final class GameScene: SKScene {
 
     private func checkEndCondition() {
         let alive = ships.filter { $0.alive }
-        if initialShipCount == 1 {
+        if mode == .survival {
+            // Co-op: ends only when every player is dead.
             if alive.isEmpty { finish(winner: nil) }
         } else {
-            if alive.count <= 1 { finish(winner: alive.first) }
+            // BATTLE: last-ship-standing.
+            if initialShipCount == 1 {
+                if alive.isEmpty { finish(winner: nil) }
+            } else {
+                if alive.count <= 1 { finish(winner: alive.first) }
+            }
         }
     }
 
@@ -628,14 +640,6 @@ final class GameScene: SKScene {
         transitioning = true
         audio.stopAllThrust()
 
-        if mode == .survival {
-            for ship in ships where ship.score > 0 {
-                let name = UserDefaults.standard.string(forKey: "player_name_\(ship.playerIndex)")
-                    ?? "P\(ship.playerIndex + 1)"
-                HighScore.record(name: name, score: ship.score, level: currentLevel)
-            }
-        }
-
         let result: GameOverScene.Result
         if mode == .battle {
             if let w = winner {
@@ -645,13 +649,25 @@ final class GameScene: SKScene {
             } else {
                 result = .battleDraw
             }
-        } else if let w = winner {
-            let name = UserDefaults.standard.string(forKey: "player_name_\(w.playerIndex)")
-                ?? "P\(w.playerIndex + 1)"
-            result = .winner(color: w.color, label: "\(name) WINS", score: w.score)
         } else {
-            let topScore = ships.map(\.score).max() ?? 0
-            result = .gameOver(topScore: topScore)
+            // Survival co-op: sum scores, record one entry under the
+            // last-to-die player. On simultaneous deaths (max tick tied),
+            // pick the lowest player index — deterministic.
+            let totalScore = ships.reduce(0) { $0 + $1.score }
+            let maxTick = shipDeathTick.values.max() ?? 0
+            let candidates = shipDeathTick.filter { $0.value == maxTick }.keys.sorted()
+            let lastIdx = candidates.first ?? 0
+            let lastShip = ships.first(where: { $0.playerIndex == lastIdx })
+            let lastName = UserDefaults.standard.string(forKey: "player_name_\(lastIdx)")
+                ?? "P\(lastIdx + 1)"
+            let lastColor = lastShip?.color ?? .white
+
+            if totalScore > 0 {
+                HighScore.record(name: lastName, score: totalScore, level: currentLevel)
+            }
+            result = .survivalEnd(lastPlayerName: lastName,
+                                  lastPlayerColor: lastColor,
+                                  totalScore: totalScore)
         }
 
         run(.sequence([
