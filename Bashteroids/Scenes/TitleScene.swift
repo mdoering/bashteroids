@@ -529,6 +529,28 @@ final class TitleScene: SKScene {
                 slotsLayer.addChild(nameLabel)
             }
         }
+
+        // Slot-preview markers: one chevron per connected unclaimed controller,
+        // sitting on the slot tile that controller would claim if it pressed A.
+        // Multiple unclaimed controllers on the same tile stack vertically.
+        let unclaimed = manager.connectedControllers.filter { manager.slot(for: $0) == nil }
+        var markersOnSlot: [Int: Int] = [:]
+        for (controllerIdx, c) in unclaimed.enumerated() {
+            let slotIdx = manager.intendedSlotIndex(for: c)
+            let placed = markersOnSlot[slotIdx, default: 0]
+            markersOnSlot[slotIdx] = placed + 1
+
+            let tileX = startX + CGFloat(slotIdx) * (tileWidth + spacing)
+            let markerY = y - 50 - CGFloat(placed) * 14
+            let color = ControllerManager.playerColors[slotIdx]
+
+            let marker = SKLabelNode(text: "▲ \(controllerIdx + 1)")
+            marker.fontName = "AvenirNext-Bold"
+            marker.fontSize = 11
+            marker.fontColor = color
+            marker.position = CGPoint(x: tileX, y: markerY)
+            slotsLayer.addChild(marker)
+        }
     }
 
     private func renderSelectors() {
