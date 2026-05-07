@@ -79,7 +79,9 @@ final class Wall: Entity {
     private static func erodeChunk(_ chunk: inout Chunk) {
         // Pick 1-2 vertices and pull them toward the chunk's local centroid by 8-14%.
         var rng = SeededGenerator(seed: UInt64(chunk.index) * 31 + UInt64(max(0, chunk.hp)))
-        let nToMove = Int(rng.cgFloat(in: 1.0...2.0))
+        // 50/50 between pulling 1 or 2 vertices; integer truncation of the
+        // [1.0, 2.0] range was silently always 1.
+        let nToMove = rng.cgFloat(in: 0...1) < 0.5 ? 1 : 2
         let count = chunk.originalVertices.count
         var newVerts = chunk.vertices
         for _ in 0..<nToMove {
