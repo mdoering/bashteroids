@@ -10,6 +10,7 @@ enum Collision {
                         rocks: [Rock],
                         mines: [Mine],
                         snakes: [Snake],
+                        walls: [Wall],
                         shipsCollideWithEachOther: Bool) {
 
         for rock in rocks where rock.alive {
@@ -139,6 +140,15 @@ enum Collision {
                     bullet.alive = false
                     hitShip(ship)
                     (bullet.owner as? Ship)?.score += Score.ship
+                    break
+                }
+            }
+            if !bullet.alive { continue }
+            for wall in walls where wall.alive {
+                let outer = wall.radius + bullet.radius
+                if wall.node.position.distanceSquared(to: bullet.position) > outer * outer { continue }
+                if wall.registerBulletHit(at: bullet.position) {
+                    bullet.alive = false
                     break
                 }
             }

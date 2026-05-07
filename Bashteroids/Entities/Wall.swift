@@ -50,6 +50,74 @@ final class Wall: Entity {
 
     func update(dt: TimeInterval) { /* walls don't move */ }
 
+    /// Returns true if `point` is inside any live chunk. Side effect: if the
+    /// hit chunk is weak, decrements its hp and updates the visual.
+    func registerBulletHit(at point: CGPoint) -> Bool {
+        let local = CGPoint(x: point.x - node.position.x,
+                            y: point.y - node.position.y)
+
+        for i in 0..<chunks.count {
+            guard chunks[i].alive else { continue }
+            if Wall.pointInPolygon(local, polygon: chunks[i].vertices) {
+                if strength == .weak {
+                    chunks[i].hp -= 1
+                    if chunks[i].hp <= 0 {
+                        chunks[i].shape.removeFromParent()
+                    } else {
+                        Wall.erodeChunk(&chunks[i])
+                    }
+                    if !chunks.contains(where: { $0.alive }) {
+                        alive = false
+                    }
+                }
+                return true
+            }
+        }
+        return false
+    }
+
+    private static func erodeChunk(_ chunk: inout Chunk) {
+        // Pick 1-2 vertices and pull them toward the chunk's local centroid by 8-14%.
+        var rng = SeededGenerator(seed: UInt64(chunk.index) * 31 + UInt64(max(0, chunk.hp)))
+        let nToMove = Int(rng.cgFloat(in: 1.0...2.0))
+        let count = chunk.originalVertices.count
+        var newVerts = chunk.vertices
+        for _ in 0..<nToMove {
+            let idx = min(count - 1, Int(rng.cgFloat(in: 0...CGFloat(count - 1))))
+            let pull = rng.cgFloat(in: 0.08...0.14)
+            let v = newVerts[idx]
+            newVerts[idx] = CGPoint(
+                x: v.x + (chunk.centroid.x - v.x) * pull,
+                y: v.y + (chunk.centroid.y - v.y) * pull
+            )
+        }
+        chunk.vertices = newVerts
+
+        let path = CGMutablePath()
+        for (i, v) in newVerts.enumerated() {
+            if i == 0 { path.move(to: v) } else { path.addLine(to: v) }
+        }
+        path.closeSubpath()
+        chunk.shape.path = path
+        chunk.shape.alpha = 0.5 + 0.1 * CGFloat(chunk.hp)
+    }
+
+    /// Standard ray-cast point-in-polygon test (CCW polygon).
+    static func pointInPolygon(_ p: CGPoint, polygon: [CGPoint]) -> Bool {
+        var inside = false
+        var j = polygon.count - 1
+        for i in 0..<polygon.count {
+            let a = polygon[i]
+            let b = polygon[j]
+            if (a.y > p.y) != (b.y > p.y) {
+                let xIntersect = (b.x - a.x) * (p.y - a.y) / (b.y - a.y) + a.x
+                if p.x < xIntersect { inside.toggle() }
+            }
+            j = i
+        }
+        return inside
+    }
+
     /// Splits the wall polygon into 4 radial wedges from its centroid. Each
     /// wedge is convex, ~90° of the perimeter, with a small inner gap so
     /// chunks read as visually distinct from the start.

@@ -16,6 +16,7 @@ final class GameScene: SKScene {
     private var alienMonsters: [AlienMonster] = []
     private var rocks: [Rock] = []
     private var snakes: [Snake] = []
+    private var walls: [Wall] = []
 
     private var spawner: Spawner!
     private var lastUpdateTime: TimeInterval = 0
@@ -153,6 +154,7 @@ final class GameScene: SKScene {
                           bullets: bullets, powerUps: powerUps,
                           rocks: rocks, mines: mines,
                           snakes: snakes,
+                          walls: walls,
                           shipsCollideWithEachOther: pvpEnabled)
 
         if levelState == .transitioning {
