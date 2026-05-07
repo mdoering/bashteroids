@@ -81,8 +81,15 @@ final class Wall: Entity {
             let trailing = CGPoint(x: centroid.x + r * cos(endAngle),
                                    y: centroid.y + r * sin(endAngle))
             var ringVerts: [CGPoint] = [leading] + slotVerts + [trailing]
-            ringVerts.sort { atan2($0.y - centroid.y, $0.x - centroid.x)
-                <  atan2($1.y - centroid.y, $1.x - centroid.x) }
+            // Sort by normalized angle (0…2π) to match the binning step;
+            // raw atan2 (-π…π) would break the wedge in the 180°–270° slot
+            // because the leading-boundary point at +π would sort after
+            // slot vertices at -π+ε, producing a self-intersecting polygon.
+            let norm: (CGPoint) -> CGFloat = { v in
+                let a = atan2(v.y - centroid.y, v.x - centroid.x)
+                return a < 0 ? a + 2 * .pi : a
+            }
+            ringVerts.sort { norm($0) < norm($1) }
             // Build wedge: ring vertices + an inset centroid point.
             let wedge = ringVerts + [CGPoint(x: centroid.x + cos((startAngle + endAngle) / 2) * innerGap,
                                               y: centroid.y + sin((startAngle + endAngle) / 2) * innerGap)]
