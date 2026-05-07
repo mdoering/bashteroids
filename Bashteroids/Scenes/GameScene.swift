@@ -376,7 +376,12 @@ final class GameScene: SKScene {
                                 parent: self)
                 audio.playExplosion()
                 for ship in ships where ship.alive {
-                    if ship.position.distance(to: dead.position) < Mine.explosionRadius {
+                    let d = ship.position.distance(to: dead.position)
+                    if d <= Mine.innerKillRadius {
+                        // Direct hit: shields don't save you.
+                        ship.alive = false
+                    } else if d < Mine.explosionRadius {
+                        // Outer blast: consume a shield, otherwise die.
                         if ship.shieldCount > 0 {
                             ship.shieldCount -= 1
                         } else {

@@ -2,7 +2,8 @@ import SpriteKit
 
 final class Mine: Entity {
     static let lifetime:        TimeInterval = 6.0
-    static let explosionRadius: CGFloat      = 120
+    static let innerKillRadius: CGFloat      = 60
+    static let explosionRadius: CGFloat      = 140
     static let collisionRadius: CGFloat      = 14
 
     let node: SKNode
