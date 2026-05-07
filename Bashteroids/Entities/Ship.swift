@@ -236,14 +236,14 @@ final class Ship: Entity {
             path.addLine(to: CGPoint(x: -8 + (r + spikeLen) * cos(a), y: (r + spikeLen) * sin(a)))
         }
         let n = SKShapeNode(path: path)
-        n.strokeColor = SKColor(white: 0.7, alpha: 1)
+        n.strokeColor = SKColor(red: 0.85, green: 0.30, blue: 0.75, alpha: 1)
         n.fillColor   = .clear
         n.lineWidth   = 1
         n.isAntialiased = true
 
         let circle = SKShapeNode(circleOfRadius: r)
         circle.position = CGPoint(x: -8, y: 0)
-        circle.strokeColor = SKColor(white: 0.7, alpha: 1)
+        circle.strokeColor = SKColor(red: 0.85, green: 0.30, blue: 0.75, alpha: 1)
         circle.fillColor   = .clear
         circle.lineWidth   = 1
         circle.isAntialiased = true

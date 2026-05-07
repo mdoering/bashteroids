@@ -211,13 +211,13 @@ enum Shapes {
             path.addLine(to: CGPoint(x: (r + spikeLen) * cos(a), y: (r + spikeLen) * sin(a)))
         }
         let container = SKShapeNode(path: path)
-        container.strokeColor = SKColor(white: 0.7, alpha: 1)
+        container.strokeColor = SKColor(red: 0.85, green: 0.30, blue: 0.75, alpha: 1)
         container.fillColor   = .clear
         container.lineWidth   = 1.5
         container.isAntialiased = true
 
         let circle = SKShapeNode(circleOfRadius: r)
-        circle.strokeColor = SKColor(white: 0.7, alpha: 1)
+        circle.strokeColor = SKColor(red: 0.85, green: 0.30, blue: 0.75, alpha: 1)
         circle.fillColor   = .clear
         circle.lineWidth   = 1.5
         circle.isAntialiased = true

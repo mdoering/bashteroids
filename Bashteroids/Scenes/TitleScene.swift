@@ -53,17 +53,39 @@ final class TitleScene: SKScene {
 
         let firstEntryColor  = SKColor(red: 231/255, green: 63/255,  blue: 150/255, alpha: 1)
         let otherEntryColor  = SKColor(red: 98/255,  green: 212/255, blue: 214/255, alpha: 1)
+        let nameX:  CGFloat = leaderboardX
+        let levelX: CGFloat = leaderboardX + 130
+        let scoreX: CGFloat = leaderboardX + 260
         for (i, entry) in HighScore.top.enumerated() {
-            let levelTag = entry.level.map { " L\($0)" } ?? ""
-            let row = SKLabelNode(text: "\(entry.name)\(levelTag): \(entry.score)")
-            row.fontName = "AvenirNext-Regular"
-            row.fontSize = 14
-            row.fontColor = i == 0 ? firstEntryColor : otherEntryColor
-            row.horizontalAlignmentMode = .left
-            row.verticalAlignmentMode = .top
-            row.position = CGPoint(x: leaderboardX,
-                                   y: leaderboardTopY - CGFloat(24 * (i + 1)))
-            addChild(row)
+            let y = leaderboardTopY - CGFloat(24 * (i + 1))
+            let color = i == 0 ? firstEntryColor : otherEntryColor
+
+            let nameLabel = SKLabelNode(text: entry.name)
+            nameLabel.fontName = "AvenirNext-Regular"
+            nameLabel.fontSize = 14
+            nameLabel.fontColor = color
+            nameLabel.horizontalAlignmentMode = .left
+            nameLabel.verticalAlignmentMode = .top
+            nameLabel.position = CGPoint(x: nameX, y: y)
+            addChild(nameLabel)
+
+            let levelLabel = SKLabelNode(text: entry.level.map { "L\($0)" } ?? "")
+            levelLabel.fontName = "AvenirNext-Regular"
+            levelLabel.fontSize = 14
+            levelLabel.fontColor = color
+            levelLabel.horizontalAlignmentMode = .left
+            levelLabel.verticalAlignmentMode = .top
+            levelLabel.position = CGPoint(x: levelX, y: y)
+            addChild(levelLabel)
+
+            let scoreLabel = SKLabelNode(text: "\(entry.score)")
+            scoreLabel.fontName = "AvenirNext-Regular"
+            scoreLabel.fontSize = 14
+            scoreLabel.fontColor = color
+            scoreLabel.horizontalAlignmentMode = .right
+            scoreLabel.verticalAlignmentMode = .top
+            scoreLabel.position = CGPoint(x: scoreX, y: y)
+            addChild(scoreLabel)
         }
 
         // Selectors anchored top-right, proportional to screen size.
@@ -220,10 +242,18 @@ final class TitleScene: SKScene {
                 slotAWasPressed[i] = pressed
             }
         } else {
+            // Name entry active. A rising edge of any controller's buttonA
+            // confirms the current entry — gives controller-only setups a
+            // way out of name entry without a keyboard.
             for (i, slot) in manager.slots.enumerated() {
-                slotAWasPressed[i] = slot.controller?.extendedGamepad?.buttonA.isPressed
+                let pressed = slot.controller?.extendedGamepad?.buttonA.isPressed
                     ?? slot.controller?.microGamepad?.buttonA.isPressed
                     ?? false
+                let was = slotAWasPressed[i] ?? false
+                if pressed && !was {
+                    confirmName()
+                }
+                slotAWasPressed[i] = pressed
             }
         }
 
@@ -309,6 +339,14 @@ final class TitleScene: SKScene {
             if !manager.hasKeyboardPlayer,
                manager.slots.count < ControllerManager.maxPlayers {
                 manager.claimKeyboard()
+            } else if let kbSlotIndex = manager.slots.firstIndex(where: { $0.keyboard != nil }) {
+                // Re-open name editor for the keyboard slot.
+                let current = UserDefaults.standard.string(
+                    forKey: "player_name_\(kbSlotIndex)") ?? "P\(kbSlotIndex + 1)"
+                activeNameSlot = kbSlotIndex
+                nameBuffer = current
+                manager.setJoinEnabled(false)
+                renderSlots()
             }
         case .spacebar, .returnOrEnter, .keypadEnter:
             tryStart()
