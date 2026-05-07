@@ -448,6 +448,7 @@ final class TitleScene: SKScene {
         let previous = UserDefaults.standard.string(forKey: "player_name_\(idx)") ?? "P\(idx + 1)"
         let name = trimmed.isEmpty ? previous : trimmed
         UserDefaults.standard.set(name, forKey: "player_name_\(idx)")
+        RecentNames.record(name)
         activeNameSlot = nil
         nameBuffer = ""
         let atMax = manager.slots.count >= ControllerManager.maxPlayers
@@ -464,6 +465,7 @@ final class TitleScene: SKScene {
             let trimmed = entered?.trimmingCharacters(in: .whitespaces) ?? ""
             let final = trimmed.isEmpty ? current : trimmed
             UserDefaults.standard.set(final, forKey: "player_name_\(idx)")
+            RecentNames.record(final)
             let atMax = self.manager.slots.count >= ControllerManager.maxPlayers
             self.manager.setJoinEnabled(!atMax)
             self.renderSlots()
