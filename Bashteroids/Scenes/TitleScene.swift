@@ -16,9 +16,17 @@ final class TitleScene: SKScene {
     private var selectedLevel: Int = GameSettings.lastPlayedLevel
     private var selectedMode: GameMode = GameSettings.lastMode
 
+    private enum FocusItem: CaseIterable { case mode, level, help }
+    private var focused: FocusItem = .level
+
     private var modeLabel: SKLabelNode!
     private var levelLabel: SKLabelNode!
     private var battleHintLabel: SKLabelNode!
+    private var helpLabel: SKLabelNode!
+    private var modeLeftArrow: SKLabelNode!
+    private var modeRightArrow: SKLabelNode!
+    private var levelLeftArrow: SKLabelNode!
+    private var levelRightArrow: SKLabelNode!
     private var dpadEdge: [ObjectIdentifier: (left: Bool, right: Bool, up: Bool, down: Bool)] = [:]
 
     override func didMove(to view: SKView) {
@@ -120,6 +128,7 @@ final class TitleScene: SKScene {
         modeLeft.horizontalAlignmentMode = .right
         modeLeft.position = CGPoint(x: selectorCenterX - valueHalfWidth - arrowGap, y: modeY)
         addChild(modeLeft)
+        self.modeLeftArrow = modeLeft
 
         let modeRight = SKLabelNode(text: ">")
         modeRight.fontName = "AvenirNext-Regular"
@@ -129,6 +138,7 @@ final class TitleScene: SKScene {
         modeRight.horizontalAlignmentMode = .right
         modeRight.position = CGPoint(x: selectorRightX, y: modeY)
         addChild(modeRight)
+        self.modeRightArrow = modeRight
 
         let mode = SKLabelNode(text: "")
         mode.fontName = "AvenirNext-Bold"
@@ -146,6 +156,7 @@ final class TitleScene: SKScene {
         levelLeft.horizontalAlignmentMode = .right
         levelLeft.position = CGPoint(x: selectorCenterX - valueHalfWidth - arrowGap, y: levelY)
         addChild(levelLeft)
+        self.levelLeftArrow = levelLeft
 
         let levelRight = SKLabelNode(text: ">")
         levelRight.fontName = "AvenirNext-Regular"
@@ -155,6 +166,7 @@ final class TitleScene: SKScene {
         levelRight.horizontalAlignmentMode = .right
         levelRight.position = CGPoint(x: selectorRightX, y: levelY)
         addChild(levelRight)
+        self.levelRightArrow = levelRight
 
         let level = SKLabelNode(text: "")
         level.fontName = "AvenirNext-Bold"
@@ -174,13 +186,14 @@ final class TitleScene: SKScene {
         addChild(battleHint)
         self.battleHintLabel = battleHint
 
-        let helpHint = SKLabelNode(text: "[H] HELP")
-        helpHint.fontName = "AvenirNext-Bold"
-        helpHint.fontSize = 14
-        helpHint.fontColor = TitleScene.accentGold
-        helpHint.horizontalAlignmentMode = .right
-        helpHint.position = CGPoint(x: size.width - 30, y: 30)
-        addChild(helpHint)
+        let helpL = SKLabelNode(text: "[H] HELP")
+        helpL.fontName = "AvenirNext-Bold"
+        helpL.fontSize = 14
+        helpL.fontColor = TitleScene.accentGold
+        helpL.horizontalAlignmentMode = .right
+        helpL.position = CGPoint(x: size.width - 30, y: 30)
+        addChild(helpL)
+        self.helpLabel = helpL
 
         renderSelectors()
 
@@ -555,16 +568,24 @@ final class TitleScene: SKScene {
 
     private func renderSelectors() {
         let battleAvailable = manager.slots.count >= 2
+        let active   = TitleScene.accentGold
+        let inactive = TitleScene.accentGold.withAlphaComponent(0.4)
 
+        modeLabel.text  = selectedMode == .survival ? "SURVIVAL" : "BATTLE"
+        modeLabel.fontColor = focused == .mode ? active : inactive
         if selectedMode == .battle && !battleAvailable {
-            selectedMode = .survival
+            modeLabel.fontColor = inactive   // forced dim regardless of focus
         }
 
-        modeLabel.text = selectedMode == .survival ? "SURVIVAL" : "BATTLE"
-        modeLabel.fontColor = TitleScene.accentGold
-
         levelLabel.text = "LEVEL \(selectedLevel)"
-        levelLabel.fontColor = TitleScene.accentGold
+        levelLabel.fontColor = focused == .level ? active : inactive
+
+        helpLabel.fontColor = focused == .help ? active : inactive
+
+        modeLeftArrow.fontColor   = focused == .mode  ? active : inactive
+        modeRightArrow.fontColor  = focused == .mode  ? active : inactive
+        levelLeftArrow.fontColor  = focused == .level ? active : inactive
+        levelRightArrow.fontColor = focused == .level ? active : inactive
 
         battleHintLabel.alpha = battleAvailable ? 0 : 1
     }
