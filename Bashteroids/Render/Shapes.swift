@@ -226,26 +226,43 @@ enum Shapes {
     }
 
     static func mine() -> SKShapeNode {
-        let r: CGFloat       = Mine.collisionRadius
-        let spikeLen: CGFloat = 6
-        let path = CGMutablePath()
+        // Sea-mine silhouette: central body + six contact-horn balls on
+        // short stubs around the perimeter.
+        let r: CGFloat = Mine.collisionRadius
+        let stubEnd: CGFloat = r + 3       // 17 px from center
+        let hornCenter: CGFloat = r + 5    // 19 px from center
+        let hornRadius: CGFloat = 2.5
+
+        let stubs = CGMutablePath()
         for i in 0..<6 {
             let a = CGFloat(i) / 6 * .pi * 2
-            path.move(to:    CGPoint(x:  r             * cos(a), y:  r             * sin(a)))
-            path.addLine(to: CGPoint(x: (r + spikeLen) * cos(a), y: (r + spikeLen) * sin(a)))
+            stubs.move(to:    CGPoint(x: r       * cos(a), y: r       * sin(a)))
+            stubs.addLine(to: CGPoint(x: stubEnd * cos(a), y: stubEnd * sin(a)))
         }
-        let container = SKShapeNode(path: path)
+        let container = SKShapeNode(path: stubs)
         container.strokeColor = .white
         container.fillColor   = .clear
         container.lineWidth   = 1.5
         container.isAntialiased = true
 
-        let circle = SKShapeNode(circleOfRadius: r)
-        circle.strokeColor = .white
-        circle.fillColor   = .clear
-        circle.lineWidth   = 1.5
-        circle.isAntialiased = true
-        container.addChild(circle)
+        let body = SKShapeNode(circleOfRadius: r)
+        body.strokeColor = .white
+        body.fillColor   = .clear
+        body.lineWidth   = 1.5
+        body.isAntialiased = true
+        container.addChild(body)
+
+        for i in 0..<6 {
+            let a = CGFloat(i) / 6 * .pi * 2
+            let horn = SKShapeNode(circleOfRadius: hornRadius)
+            horn.position = CGPoint(x: hornCenter * cos(a), y: hornCenter * sin(a))
+            horn.strokeColor = .white
+            horn.fillColor   = .clear
+            horn.lineWidth   = 1.5
+            horn.isAntialiased = true
+            container.addChild(horn)
+        }
+
         return container
     }
 
