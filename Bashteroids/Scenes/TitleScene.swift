@@ -16,7 +16,7 @@ final class TitleScene: SKScene {
     /// is currently highlighted. -1 means "the buffer wins" — user has typed
     /// (or just opened the editor), suggestions are not the active selection.
     private var nameSuggestionIndex: Int = -1
-    private var prevSlotCount: Int = 0
+    private var prevClaimedIndices: Set<Int> = []
     private var slotAWasPressed: [Int: Bool] = [:]
     private var selectedLevel: Int = GameSettings.lastPlayedLevel
     private var selectedMode: GameMode = GameSettings.lastMode
@@ -207,9 +207,9 @@ final class TitleScene: SKScene {
 
         manager.onSlotsChanged = { [weak self] in
             guard let self else { return }
-            let newCount = self.manager.slots.count
-            if newCount > self.prevSlotCount {
-                let idx = newCount - 1
+            let currentIndices = Set(self.manager.slots.map { $0.index })
+            let newlyAdded = currentIndices.subtracting(self.prevClaimedIndices).sorted()
+            if let idx = newlyAdded.first {
                 let current = UserDefaults.standard.string(
                     forKey: "player_name_\(idx)") ?? "P\(idx + 1)"
                 #if os(tvOS)
@@ -217,10 +217,11 @@ final class TitleScene: SKScene {
                 #else
                 self.activeNameSlot = idx
                 self.nameBuffer = current
+                self.nameSuggestionIndex = -1
                 self.manager.setJoinEnabled(false)
                 #endif
             }
-            self.prevSlotCount = newCount
+            self.prevClaimedIndices = currentIndices
             self.renderSlots()
             self.renderSelectors()
         }
@@ -547,14 +548,14 @@ final class TitleScene: SKScene {
         let totalWidth = CGFloat(count) * tileWidth + CGFloat(count - 1) * spacing
         let startX = (size.width - totalWidth) / 2 + tileWidth / 2
         let y = size.height * 0.46
+        let slotByIndex = Dictionary(uniqueKeysWithValues: manager.slots.map { ($0.index, $0) })
 
         for i in 0..<count {
             let x = startX + CGFloat(i) * (tileWidth + spacing)
             let center = CGPoint(x: x, y: y)
-            let claimed = i < manager.slots.count
-            let color: SKColor = claimed
-                ? manager.slots[i].color
-                : SKColor(white: 0.25, alpha: 1)
+            let slot = slotByIndex[i]
+            let claimed = slot != nil
+            let color: SKColor = slot?.color ?? SKColor(white: 0.25, alpha: 1)
 
             let tile = SKShapeNode(rectOf: CGSize(width: tileWidth, height: 110), cornerRadius: 8)
             tile.position = center
