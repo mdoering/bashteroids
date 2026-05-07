@@ -246,7 +246,7 @@ final class GameScene: SKScene {
             }
 
             let heading = atan2(center.y - bestPos.y, center.x - bestPos.x)
-                + CGFloat.random(in: -0.3...0.3)
+                + battleRNG.cgFloat(in: -0.3...0.3)
             let ship = Ship(playerIndex: slot.index,
                             color: slot.color,
                             position: bestPos,
@@ -467,7 +467,7 @@ final class GameScene: SKScene {
     // MARK: - Level transitions
 
     private func checkLevelComplete() {
-        guard levelState == .spawning, !transitioning else { return }
+        guard mode != .battle, levelState == .spawning, !transitioning else { return }
         let killTargetsAlive = !asteroids.isEmpty || !ufos.isEmpty
             || !alienMonsters.isEmpty || !snakes.isEmpty
         if !spawner.hasMoreSpawns && !killTargetsAlive {

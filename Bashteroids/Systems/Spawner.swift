@@ -71,7 +71,7 @@ final class Spawner {
         if mode == .battle {
             // BATTLE mode runs on its own powerup drip schedule (see
             // updateBattlePowerUps). No enemies queued.
-            nextBattlePowerUpTime = TimeInterval.random(in: 30...60)
+            nextBattlePowerUpTime = TimeInterval(rng.cgFloat(in: 30...60))
             elapsed = 0
             timeToNextSpawn = .infinity
             return
