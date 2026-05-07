@@ -21,6 +21,10 @@ final class ControllerManager {
     var hasKeyboardPlayer: Bool { slots.contains { $0.keyboard != nil } }
 
     private var joinEnabled = false
+    /// For unclaimed controllers, which empty slot index this controller will
+    /// claim when its A button fires. Defaults to the leftmost empty slot
+    /// when not set.
+    private var intendedSlot: [ObjectIdentifier: Int] = [:]
     private var connectObserver: NSObjectProtocol?
     private var disconnectObserver: NSObjectProtocol?
 
@@ -61,6 +65,25 @@ final class ControllerManager {
         slots.first { $0.controller === controller }
     }
 
+    func intendedSlotIndex(for controller: GCController) -> Int {
+        let id = ObjectIdentifier(controller)
+        if let idx = intendedSlot[id], emptySlotIndices().contains(idx) {
+            return idx
+        }
+        return emptySlotIndices().first ?? 0
+    }
+
+    func setIntendedSlotIndex(_ idx: Int, for controller: GCController) {
+        let id = ObjectIdentifier(controller)
+        intendedSlot[id] = idx
+    }
+
+    /// Indices in 0..<maxPlayers that aren't currently claimed.
+    func emptySlotIndices() -> [Int] {
+        let claimed = Set(slots.map { $0.index })
+        return (0..<Self.maxPlayers).filter { !claimed.contains($0) }
+    }
+
     func setJoinEnabled(_ enabled: Bool) {
         joinEnabled = enabled
         for c in connectedControllers {
@@ -87,6 +110,7 @@ final class ControllerManager {
     private func handleDisconnect(_ controller: GCController) {
         let removed = slots.contains { $0.controller === controller }
         slots.removeAll { $0.controller === controller }
+        intendedSlot.removeValue(forKey: ObjectIdentifier(controller))
         if removed { onSlotsChanged?() }
     }
 
@@ -110,7 +134,8 @@ final class ControllerManager {
             if joinEnabled && slot(for: controller) == nil {
                 gp.buttonA.pressedChangedHandler = { [weak self] _, _, pressed in
                     guard pressed, let self else { return }
-                    self.claim(controller: controller)
+                    self.claim(controller: controller,
+                               atSlot: self.intendedSlotIndex(for: controller))
                 }
             } else {
                 gp.buttonA.pressedChangedHandler = nil
@@ -122,7 +147,8 @@ final class ControllerManager {
             if joinEnabled && slot(for: controller) == nil {
                 mg.buttonA.pressedChangedHandler = { [weak self] _, _, pressed in
                     guard pressed, let self else { return }
-                    self.claim(controller: controller)
+                    self.claim(controller: controller,
+                               atSlot: self.intendedSlotIndex(for: controller))
                 }
             } else {
                 mg.buttonA.pressedChangedHandler = nil
@@ -155,16 +181,17 @@ final class ControllerManager {
     #endif
 
     @discardableResult
-    private func claim(controller: GCController) -> PlayerSlot? {
-        guard slots.count < Self.maxPlayers else { return nil }
+    private func claim(controller: GCController, atSlot index: Int) -> PlayerSlot? {
         guard slot(for: controller) == nil else { return nil }
-        let index = slots.count
+        guard emptySlotIndices().contains(index) else { return nil }
         let slot = PlayerSlot(
             index: index,
             color: Self.playerColors[index],
             controller: controller
         )
         slots.append(slot)
+        slots.sort { $0.index < $1.index }   // keep iteration order stable
+        intendedSlot.removeValue(forKey: ObjectIdentifier(controller))
         installJoinHandler(controller)
         onSlotsChanged?()
         return slot
