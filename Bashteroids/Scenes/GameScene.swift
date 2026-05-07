@@ -20,6 +20,7 @@ final class GameScene: SKScene {
 
     private var spawner: Spawner!
     private var lastUpdateTime: TimeInterval = 0
+    private var battleRNG = SeededGenerator(seed: UInt64(Date().timeIntervalSince1970 * 1000))
 
     private var initialShipCount: Int = 0
     private var transitioning = false
@@ -66,8 +67,14 @@ final class GameScene: SKScene {
         backgroundColor = .black
         GameSettings.lastPlayedLevel = currentLevel
         spawner = Spawner(bounds: playBounds, glowParent: self)
+        spawner.mode = mode
 
-        spawnShipsForJoinedPlayers(in: playBounds)
+        if mode == .battle {
+            generateBattleWalls()
+            spawnShipsForBattle(in: playBounds)
+        } else {
+            spawnShipsForJoinedPlayers(in: playBounds)
+        }
         initialShipCount = ships.count
 
         addChild(hudLayer)
@@ -80,10 +87,15 @@ final class GameScene: SKScene {
             self?.handleKeyDown(code)
         }
 
-        levelState = .transitioning
-        transitionTime = 0
-        bannerStarted = false
-        flashStarted = false
+        if mode == .battle {
+            levelState = .spawning
+            spawner.startLevel(LevelRoster.config(for: currentLevel))
+        } else {
+            levelState = .transitioning
+            transitionTime = 0
+            bannerStarted = false
+            flashStarted = false
+        }
     }
 
     override func willMove(from view: SKView) {
@@ -161,7 +173,12 @@ final class GameScene: SKScene {
                           walls: walls,
                           shipsCollideWithEachOther: pvpEnabled)
 
-        if levelState == .transitioning {
+        if mode == .battle {
+            _ = spawner.update(dt: dt)  // advance elapsed only
+            if let pu = spawner.updateBattlePowerUps(walls: walls, rng: &battleRNG) {
+                spawn(pu)
+            }
+        } else if levelState == .transitioning {
             handleLevelTransition(dt: dt)
         } else {
             let spawns = spawner.update(dt: dt)
@@ -199,6 +216,53 @@ final class GameScene: SKScene {
             ships.append(ship)
             addChild(ship.node)
         }
+    }
+
+    private func generateBattleWalls() {
+        let seed = UInt64(Date().timeIntervalSince1970 * 1000)
+        walls = BattleArena.generate(in: playBounds, level: currentLevel, seed: seed)
+        for wall in walls {
+            addChild(wall.node)
+        }
+    }
+
+    private func spawnShipsForBattle(in bounds: CGRect) {
+        let center = CGPoint(x: bounds.midX, y: bounds.midY)
+        let inset: CGFloat = min(bounds.width, bounds.height) * 0.42
+        let slots = manager.slots
+        let count = slots.count
+
+        for (i, slot) in slots.enumerated() {
+            let angle = CGFloat(i) / CGFloat(count) * .pi * 2
+            // Try a few angular nudges if the obvious spot collides with a wall.
+            var bestPos = center + CGPoint.fromAngle(angle, length: inset)
+            var bestClearance: CGFloat = -.infinity
+            for jitter in stride(from: -0.4, through: 0.4, by: 0.1) {
+                let a = angle + CGFloat(jitter)
+                let p = center + CGPoint.fromAngle(a, length: inset)
+                let c = clearanceFromWalls(p)
+                if c >= 60 { bestPos = p; break }
+                if c > bestClearance { bestClearance = c; bestPos = p }
+            }
+
+            let heading = atan2(center.y - bestPos.y, center.x - bestPos.x)
+                + CGFloat.random(in: -0.3...0.3)
+            let ship = Ship(playerIndex: slot.index,
+                            color: slot.color,
+                            position: bestPos,
+                            heading: heading)
+            ships.append(ship)
+            addChild(ship.node)
+        }
+    }
+
+    private func clearanceFromWalls(_ p: CGPoint) -> CGFloat {
+        var best: CGFloat = .infinity
+        for w in walls where w.alive {
+            let d = sqrt(w.node.position.distanceSquared(to: p)) - w.radius
+            if d < best { best = d }
+        }
+        return best
     }
 
     // MARK: - Per-frame helpers

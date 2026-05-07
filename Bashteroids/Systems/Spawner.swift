@@ -24,6 +24,8 @@ final class Spawner {
     static let spawnIntervalJitter: TimeInterval = 0.4
 
     var bounds: CGRect
+    var mode: GameMode = .survival
+    private var nextBattlePowerUpTime: TimeInterval?
 
     private weak var glowParent: SKNode?
     private var rng: SeededGenerator
@@ -65,6 +67,15 @@ final class Spawner {
         queue.removeAll(keepingCapacity: true)
         for p in pending { p.glow?.removeFromParent() }
         pending.removeAll(keepingCapacity: true)
+
+        if mode == .battle {
+            // BATTLE mode runs on its own powerup drip schedule (see
+            // updateBattlePowerUps). No enemies queued.
+            nextBattlePowerUpTime = TimeInterval.random(in: 30...60)
+            elapsed = 0
+            timeToNextSpawn = .infinity
+            return
+        }
 
         append(.asteroid, count: config.asteroids)
         append(.ufo,      count: config.ufos)
@@ -277,5 +288,58 @@ final class Spawner {
         case .left:   return  0
         case .right:  return  .pi
         }
+    }
+
+    /// Per-frame BATTLE powerup drip. Call from GameScene.update AFTER
+    /// Spawner.update so `elapsed` is current (Spawner.update increments
+    /// `elapsed` unconditionally). Returns one Spawn (the powerup) if a drop
+    /// is due this frame.
+    func updateBattlePowerUps(walls: [Wall], rng: inout SeededGenerator) -> Spawn? {
+        guard mode == .battle, let due = nextBattlePowerUpTime else { return nil }
+        guard elapsed >= due else { return nil }
+
+        let kinds: [(PowerUpKind, Int)] = [(.shield, 3), (.dualCanon, 1), (.boost, 1)]
+        let totalWeight = kinds.reduce(0) { $0 + $1.1 }
+        var pick = Int(rng.cgFloat(in: 0...CGFloat(totalWeight - 1)))
+        var chosen: PowerUpKind = .shield
+        for (k, w) in kinds {
+            if pick < w { chosen = k; break }
+            pick -= w
+        }
+
+        let position = randomOpenSpotForPowerUp(walls: walls, rng: &rng)
+        nextBattlePowerUpTime = elapsed + TimeInterval(rng.cgFloat(in: 30...60))
+
+        return Spawn(kind: .powerUp(kind: chosen, speed: 0),
+                     position: position,
+                     velocity: .zero,
+                     side: .top)
+    }
+
+    /// Pick a random open spot for a BATTLE powerup. Prefers spots >= 40 px
+    /// from any wall chunk; gives up after 30 tries and uses the best
+    /// candidate so far.
+    private func randomOpenSpotForPowerUp(walls: [Wall],
+                                          rng: inout SeededGenerator) -> CGPoint {
+        let inner = bounds.insetBy(dx: 60, dy: 60)
+        let minClearance: CGFloat = 40
+        var best = CGPoint(x: inner.midX, y: inner.midY)
+        var bestClearance: CGFloat = -.infinity
+
+        for _ in 0..<30 {
+            let p = CGPoint(x: rng.cgFloat(in: inner.minX...inner.maxX),
+                            y: rng.cgFloat(in: inner.minY...inner.maxY))
+            var clearance: CGFloat = .infinity
+            for w in walls where w.alive {
+                let d = sqrt(w.node.position.distanceSquared(to: p)) - w.radius
+                clearance = min(clearance, d)
+            }
+            if clearance >= minClearance { return p }
+            if clearance > bestClearance {
+                bestClearance = clearance
+                best = p
+            }
+        }
+        return best
     }
 }
