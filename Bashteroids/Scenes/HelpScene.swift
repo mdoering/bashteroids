@@ -60,10 +60,6 @@ final class HelpScene: SKScene {
         }
     }
 
-    override func willMove(from view: SKView) {
-        KeyboardManager.shared.onKeyDown = nil
-    }
-
     private func renderControllerSection(labelX: CGFloat, valueX: CGFloat, topY: CGFloat) {
         var y = topY
         addHeading("CONTROLLER", x: labelX, y: y, alignment: .right); y -= 30
