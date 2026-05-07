@@ -3,8 +3,10 @@ import GameController
 
 final class GameOverScene: SKScene {
     enum Result {
-        case gameOver
-        case winner(color: SKColor, label: String)
+        case gameOver(topScore: Int)
+        case winner(color: SKColor, label: String, score: Int)
+        case battleWinner(color: SKColor, name: String)
+        case battleDraw
     }
 
     private let result: Result
@@ -21,25 +23,39 @@ final class GameOverScene: SKScene {
         fatalError("init(coder:) not supported")
     }
 
-    override var canBecomeFirstResponder: Bool { true }
-
-    override func didMove(to view: SKView) {
-        backgroundColor = .black
-        becomeFirstResponder()
-
-        let (text, color): (String, SKColor) = {
-            switch result {
-            case .gameOver: return ("GAME OVER", .white)
-            case .winner(let c, let label): return (label, c)
-            }
-        }()
-
+    private func renderBanner(text: String, color: SKColor) {
         let banner = SKLabelNode(text: text)
         banner.fontName = "AvenirNext-Bold"
         banner.fontSize = 72
         banner.fontColor = color
         banner.position = CGPoint(x: size.width / 2, y: size.height * 0.55)
         addChild(banner)
+    }
+
+    private func renderSubtitle(text: String) {
+        let label = SKLabelNode(text: text)
+        label.fontName = "AvenirNext-Bold"
+        label.fontSize = 32
+        label.fontColor = SKColor(white: 0.75, alpha: 1)
+        label.position = CGPoint(x: size.width / 2, y: size.height * 0.45)
+        addChild(label)
+    }
+
+    override func didMove(to view: SKView) {
+        backgroundColor = .black
+
+        switch result {
+        case .gameOver(let s):
+            renderBanner(text: "GAME OVER", color: .white)
+            renderSubtitle(text: "SCORE  \(s)")
+        case .winner(let c, let label, let s):
+            renderBanner(text: label, color: c)
+            renderSubtitle(text: "SCORE  \(s)")
+        case .battleWinner(let c, let name):
+            renderBanner(text: "\(name) WINS", color: c)
+        case .battleDraw:
+            renderBanner(text: "DRAW", color: .white)
+        }
 
         let hint = SKLabelNode(text: "PRESS A · START · SPACE")
         hint.fontName = "AvenirNext-Regular"
@@ -47,6 +63,21 @@ final class GameOverScene: SKScene {
         hint.fontColor = SKColor(white: 0.55, alpha: 1)
         hint.position = CGPoint(x: size.width / 2, y: size.height * 0.34)
         addChild(hint)
+
+        KeyboardManager.shared.onKeyDown = { [weak self] code in
+            self?.handleKeyDown(code)
+        }
+    }
+
+    private func handleKeyDown(_ code: GCKeyCode) {
+        switch code {
+        case .keyA, .spacebar, .returnOrEnter, .keypadEnter:
+            returnToTitle()
+        case .escape:
+            MacFullScreen.exitIfActive()
+        default:
+            break
+        }
     }
 
     override func update(_ currentTime: TimeInterval) {
@@ -63,23 +94,6 @@ final class GameOverScene: SKScene {
             }
             prevButtonState[id] = (menu, a)
         }
-    }
-
-    override func pressesBegan(_ presses: Set<UIPress>, with event: UIPressesEvent?) {
-        for press in presses {
-            guard let key = press.key else { continue }
-            switch key.keyCode {
-            case .keyboardSpacebar, .keyboardReturnOrEnter:
-                returnToTitle()
-                return
-            case .keyboardEscape:
-                MacFullScreen.exitIfActive()
-                return
-            default:
-                break
-            }
-        }
-        super.pressesBegan(presses, with: event)
     }
 
     private func returnToTitle() {

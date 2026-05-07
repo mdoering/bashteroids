@@ -582,25 +582,34 @@ final class GameScene: SKScene {
         transitioning = true
         audio.stopAllThrust()
 
-        for ship in ships {
-            let name = UserDefaults.standard.string(forKey: "player_name_\(ship.playerIndex)")
-                ?? "P\(ship.playerIndex + 1)"
-            HighScore.record(name: name, score: ship.score, level: currentLevel)
+        if mode == .survival {
+            for ship in ships where ship.score > 0 {
+                let name = UserDefaults.standard.string(forKey: "player_name_\(ship.playerIndex)")
+                    ?? "P\(ship.playerIndex + 1)"
+                HighScore.record(name: name, score: ship.score, level: currentLevel)
+            }
         }
 
-        let topScore = ships.map(\.score).max() ?? 0
-        let result: GameOverScene.Result = winner.map {
-            let name = UserDefaults.standard.string(forKey: "player_name_\($0.playerIndex)") ?? "P\($0.playerIndex + 1)"
-            return .winner(color: $0.color, label: "\(name) WINS", score: $0.score)
-        } ?? .gameOver(topScore: topScore)
+        let result: GameOverScene.Result
+        if mode == .battle {
+            if let w = winner {
+                let name = UserDefaults.standard.string(forKey: "player_name_\(w.playerIndex)")
+                    ?? "P\(w.playerIndex + 1)"
+                result = .battleWinner(color: w.color, name: name)
+            } else {
+                result = .battleDraw
+            }
+        } else if let w = winner {
+            let name = UserDefaults.standard.string(forKey: "player_name_\(w.playerIndex)")
+                ?? "P\(w.playerIndex + 1)"
+            result = .winner(color: w.color, label: "\(name) WINS", score: w.score)
+        } else {
+            let topScore = ships.map(\.score).max() ?? 0
+            result = .gameOver(topScore: topScore)
+        }
 
         let next = GameOverScene(size: size, result: result)
         next.scaleMode = scaleMode
-        run(.sequence([
-            .wait(forDuration: 1.2),
-            .run { [weak self] in
-                self?.view?.presentScene(next, transition: .fade(withDuration: 0.5))
-            }
-        ]))
+        view?.presentScene(next, transition: .fade(withDuration: 0.5))
     }
 }
