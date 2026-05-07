@@ -12,10 +12,12 @@ final class Mine: Entity {
     var alive:  Bool      = true
     var exploded: Bool    = false
 
+    private let effectiveLifetime: TimeInterval
     private var age:        TimeInterval = 0
     private var flashPhase: TimeInterval = 0
 
-    init(position: CGPoint) {
+    init(position: CGPoint, lifetimeOverride: TimeInterval? = nil) {
+        self.effectiveLifetime = lifetimeOverride ?? Self.lifetime
         let n = Shapes.mine()
         n.position = position
         self.node = n
@@ -23,13 +25,13 @@ final class Mine: Entity {
 
     func update(dt: TimeInterval) {
         age += dt
-        if age >= Self.lifetime {
+        if age >= effectiveLifetime {
             alive    = false
             exploded = true
             return
         }
-        let t      = CGFloat(age / Self.lifetime)
-        let period = Double(1.5 - t * 1.3)
+        let t      = CGFloat(age / effectiveLifetime)
+        let period = max(0.2, Double(1.5 - t * 1.3))
         flashPhase += dt
         flashPhase = flashPhase.truncatingRemainder(dividingBy: period)
         node.alpha = flashPhase < period / 2 ? 1.0 : 0.15

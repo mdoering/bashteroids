@@ -1,6 +1,6 @@
 import SpriteKit
 
-enum PowerUpKind { case shield, dualCanon, boost }
+enum PowerUpKind { case shield, dualCanon, boost, minelayer }
 
 final class PowerUp: Entity {
     static let fadeWindow: TimeInterval = 5

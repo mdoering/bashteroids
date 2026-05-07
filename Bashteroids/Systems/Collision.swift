@@ -162,6 +162,7 @@ enum Collision {
                     case .shield:    ship.shieldCount = min(ship.shieldCount + 1, Ship.maxShieldStack)
                     case .dualCanon: ship.canonLevel  = min(ship.canonLevel + 1, Ship.maxCanonLevel)
                     case .boost:     ship.boostLevel  = min(ship.boostLevel + 1, Ship.maxBoostLevel)
+                    case .minelayer: break // Wired in Task 6.
                     }
                 }
             }

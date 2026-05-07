@@ -167,6 +167,7 @@ enum Shapes {
         case .shield:    return shieldPowerUp()
         case .dualCanon: return dualCanonPowerUp()
         case .boost:     return boostPowerUp()
+        case .minelayer: return minelayerPowerUp()
         }
     }
 
@@ -215,6 +216,31 @@ enum Shapes {
         node.lineWidth = 1.5
         node.isAntialiased = true
         return node
+    }
+
+    private static func minelayerPowerUp() -> SKShapeNode {
+        // Spiked-circle silhouette evoking a mine. Six radial spikes.
+        let r: CGFloat       = 6
+        let spikeLen: CGFloat = 6
+        let path = CGMutablePath()
+        for i in 0..<6 {
+            let a = CGFloat(i) / 6 * .pi * 2
+            path.move(to:    CGPoint(x:  r             * cos(a), y:  r             * sin(a)))
+            path.addLine(to: CGPoint(x: (r + spikeLen) * cos(a), y: (r + spikeLen) * sin(a)))
+        }
+        let container = SKShapeNode(path: path)
+        container.strokeColor = SKColor(white: 0.7, alpha: 1)
+        container.fillColor   = .clear
+        container.lineWidth   = 1.5
+        container.isAntialiased = true
+
+        let circle = SKShapeNode(circleOfRadius: r)
+        circle.strokeColor = SKColor(white: 0.7, alpha: 1)
+        circle.fillColor   = .clear
+        circle.lineWidth   = 1.5
+        circle.isAntialiased = true
+        container.addChild(circle)
+        return container
     }
 
     static func mine() -> SKShapeNode {
