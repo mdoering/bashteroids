@@ -12,6 +12,10 @@ final class TitleScene: SKScene {
     private var aWasPressed: [ObjectIdentifier: Bool] = [:]
     private var activeNameSlot: Int? = nil
     private var nameBuffer: String = ""
+    /// While name entry is active, which recent-names suggestion (0-based)
+    /// is currently highlighted. -1 means "the buffer wins" — user has typed
+    /// (or just opened the editor), suggestions are not the active selection.
+    private var nameSuggestionIndex: Int = -1
     private var prevSlotCount: Int = 0
     private var slotAWasPressed: [Int: Bool] = [:]
     private var selectedLevel: Int = GameSettings.lastPlayedLevel
@@ -386,12 +390,31 @@ final class TitleScene: SKScene {
         if activeNameSlot != nil {
             switch code {
             case .returnOrEnter, .keypadEnter:
+                let suggestions = Array(RecentNames.all.prefix(4))
+                if nameSuggestionIndex >= 0, nameSuggestionIndex < suggestions.count {
+                    nameBuffer = suggestions[nameSuggestionIndex]
+                }
                 confirmName()
             case .deleteOrBackspace:
-                if !nameBuffer.isEmpty { nameBuffer.removeLast(); renderSlots() }
+                if !nameBuffer.isEmpty { nameBuffer.removeLast() }
+                nameSuggestionIndex = -1
+                renderSlots()
+            case .upArrow:
+                let count = min(4, RecentNames.all.count)
+                guard count > 0 else { break }
+                nameSuggestionIndex = max(0, (nameSuggestionIndex < 0 ? 0 : nameSuggestionIndex - 1))
+                renderSlots()
+            case .downArrow:
+                let count = min(4, RecentNames.all.count)
+                guard count > 0 else { break }
+                nameSuggestionIndex = nameSuggestionIndex < 0
+                    ? 0
+                    : min(count - 1, nameSuggestionIndex + 1)
+                renderSlots()
             default:
                 if let ch = TitleScene.charFor(keyCode: code), nameBuffer.count < 8 {
                     nameBuffer.append(ch)
+                    nameSuggestionIndex = -1
                     renderSlots()
                 }
             }
@@ -423,6 +446,7 @@ final class TitleScene: SKScene {
                     forKey: "player_name_\(kbSlotIndex)") ?? "P\(kbSlotIndex + 1)"
                 activeNameSlot = kbSlotIndex
                 nameBuffer = current
+                nameSuggestionIndex = -1
                 manager.setJoinEnabled(false)
                 renderSlots()
             }
@@ -492,6 +516,7 @@ final class TitleScene: SKScene {
         RecentNames.record(name)
         activeNameSlot = nil
         nameBuffer = ""
+        nameSuggestionIndex = -1
         let atMax = manager.slots.count >= ControllerManager.maxPlayers
         manager.setJoinEnabled(!atMax)
         renderSlots()
@@ -591,6 +616,38 @@ final class TitleScene: SKScene {
             marker.fontColor = color
             marker.position = CGPoint(x: tileX, y: markerY)
             slotsLayer.addChild(marker)
+        }
+
+        if let activeIdx = activeNameSlot {
+            let recents = Array(RecentNames.all.prefix(4))
+            if !recents.isEmpty {
+                let tileX = startX + CGFloat(activeIdx) * (tileWidth + spacing)
+                let baseX = tileX + tileWidth / 2 + 16    // right of the active tile
+                let baseY = y                              // align with tile top
+
+                let header = SKLabelNode(text: "RECENT")
+                header.fontName = "AvenirNext-Bold"
+                header.fontSize = 11
+                header.fontColor = SKColor(white: 0.45, alpha: 1)
+                header.horizontalAlignmentMode = .left
+                header.verticalAlignmentMode = .top
+                header.position = CGPoint(x: baseX, y: baseY + 24)
+                slotsLayer.addChild(header)
+
+                for (i, name) in recents.enumerated() {
+                    let isHighlighted = i == nameSuggestionIndex
+                    let lbl = SKLabelNode(text: name)
+                    lbl.fontName = "AvenirNext-Regular"
+                    lbl.fontSize = 14
+                    lbl.fontColor = isHighlighted
+                        ? TitleScene.accentGold
+                        : SKColor(white: 0.65, alpha: 1)
+                    lbl.horizontalAlignmentMode = .left
+                    lbl.verticalAlignmentMode = .top
+                    lbl.position = CGPoint(x: baseX, y: baseY - CGFloat(i * 18))
+                    slotsLayer.addChild(lbl)
+                }
+            }
         }
     }
 
