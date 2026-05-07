@@ -13,6 +13,15 @@ final class HelpScene: SKScene {
     override func didMove(to view: SKView) {
         backgroundColor = .black
 
+        let bgTexture = SKTexture(imageNamed: "HelpBackground")
+        let bgImgSize = bgTexture.size()
+        let bgScale = max(size.width / bgImgSize.width, size.height / bgImgSize.height)
+        let bg = SKSpriteNode(texture: bgTexture)
+        bg.size = CGSize(width: bgImgSize.width * bgScale, height: bgImgSize.height * bgScale)
+        bg.position = CGPoint(x: size.width / 2, y: size.height / 2)
+        bg.zPosition = -1
+        addChild(bg)
+
         let title = SKLabelNode(text: "HELP")
         title.fontName = "AvenirNext-Bold"
         title.fontSize = 28
