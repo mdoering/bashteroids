@@ -1,6 +1,5 @@
 import SpriteKit
 import GameController
-import UIKit
 
 final class GameScene: SKScene {
     private let manager = ControllerManager.shared
@@ -42,7 +41,10 @@ final class GameScene: SKScene {
     private let hudLayer = SKNode()
     private var scoreLabels: [SKLabelNode] = []
 
-    private var safeInsets: UIEdgeInsets { view?.safeAreaInsets ?? .zero }
+    private var safeInsetTop:    CGFloat { view?.safeAreaInsets.top    ?? 0 }
+    private var safeInsetBottom: CGFloat { view?.safeAreaInsets.bottom ?? 0 }
+    private var safeInsetLeft:   CGFloat { view?.safeAreaInsets.left   ?? 0 }
+    private var safeInsetRight:  CGFloat { view?.safeAreaInsets.right  ?? 0 }
 
     init(size: CGSize, level: Int, mode: GameMode) {
         self.mode = mode
@@ -55,12 +57,11 @@ final class GameScene: SKScene {
     }
 
     var playBounds: CGRect {
-        let insets = safeInsets
-        return CGRect(
-            x: insets.left,
-            y: insets.bottom,
-            width: size.width - insets.left - insets.right,
-            height: size.height - insets.top - insets.bottom - Self.hudHeight
+        CGRect(
+            x: safeInsetLeft,
+            y: safeInsetBottom,
+            width: size.width - safeInsetLeft - safeInsetRight,
+            height: size.height - safeInsetTop - safeInsetBottom - Self.hudHeight
         )
     }
 
@@ -597,7 +598,7 @@ final class GameScene: SKScene {
         let count = scoreLabels.count
         guard count > 0 else { return }
         let segmentWidth = size.width / CGFloat(count)
-        let y = size.height - safeInsets.top - Self.hudHeight / 2
+        let y = size.height - safeInsetTop - Self.hudHeight / 2
         for (i, label) in scoreLabels.enumerated() {
             label.position = CGPoint(x: segmentWidth * (CGFloat(i) + 0.5), y: y)
         }
