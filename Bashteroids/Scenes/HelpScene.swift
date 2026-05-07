@@ -28,10 +28,15 @@ final class HelpScene: SKScene {
         let rightLabelX = centerX + labelGap
         let rightValueX = centerX + valueGap
 
-        let topY = size.height * 0.85
+        // 2x2 grid: input controls on top (CONTROLLER left, KEYBOARD right —
+        // equal heights), reference cards below (POWERUPS left, ENEMIES right).
+        let topRowY    = size.height * 0.85
+        let bottomRowY = size.height * 0.45
 
-        renderLeftColumn(labelX: leftLabelX, valueX: leftValueX, topY: topY)
-        renderRightColumn(labelX: rightLabelX, valueX: rightValueX, topY: topY)
+        renderControllerSection(labelX: leftLabelX,  valueX: leftValueX,  topY: topRowY)
+        renderKeyboardSection(  labelX: rightLabelX, valueX: rightValueX, topY: topRowY)
+        renderPowerupsSection(  labelX: leftLabelX,  valueX: leftValueX,  topY: bottomRowY)
+        renderEnemiesSection(   labelX: rightLabelX, valueX: rightValueX, topY: bottomRowY)
 
         KeyboardManager.shared.onKeyDown = { [weak self] code in
             self?.handleKeyDown(code)
@@ -42,23 +47,8 @@ final class HelpScene: SKScene {
         KeyboardManager.shared.onKeyDown = nil
     }
 
-    private func renderLeftColumn(labelX: CGFloat, valueX: CGFloat, topY: CGFloat) {
+    private func renderControllerSection(labelX: CGFloat, valueX: CGFloat, topY: CGFloat) {
         var y = topY
-        addHeading("KEYBOARD", x: labelX, y: y, alignment: .right); y -= 30
-        for (label, value) in [
-            ("Turn",      "\u{2190} / \u{2192}"),
-            ("Thrust",    "\u{2191}"),
-            ("Brake",     "\u{2193}"),
-            ("Fire",      "Space"),
-            ("Minelayer", "M"),
-            ("Join",      "A"),
-            ("Start",     "Space / Enter")
-        ] {
-            addLeftRow(label: label, value: value, labelX: labelX, valueX: valueX, y: y)
-            y -= 20
-        }
-
-        y -= 18
         addHeading("CONTROLLER", x: labelX, y: y, alignment: .right); y -= 30
         for (label, value) in [
             ("Turn",      "Left stick / D-pad"),
@@ -74,20 +64,39 @@ final class HelpScene: SKScene {
         }
     }
 
-    private func renderRightColumn(labelX: CGFloat, valueX: CGFloat, topY: CGFloat) {
+    private func renderKeyboardSection(labelX: CGFloat, valueX: CGFloat, topY: CGFloat) {
         var y = topY
-        addHeading("POWERUPS", x: labelX, y: y, alignment: .left); y -= 30
+        addHeading("KEYBOARD", x: labelX, y: y, alignment: .left); y -= 30
+        for (label, value) in [
+            ("Turn",      "\u{2190} / \u{2192}"),
+            ("Thrust",    "\u{2191}"),
+            ("Brake",     "\u{2193}"),
+            ("Fire",      "Space"),
+            ("Minelayer", "M"),
+            ("Join",      "A"),
+            ("Start",     "Space / Enter")
+        ] {
+            addRightRow(label: label, value: value, labelX: labelX, valueX: valueX, y: y)
+            y -= 20
+        }
+    }
+
+    private func renderPowerupsSection(labelX: CGFloat, valueX: CGFloat, topY: CGFloat) {
+        var y = topY
+        addHeading("POWERUPS", x: labelX, y: y, alignment: .right); y -= 30
         for (label, value) in [
             ("Shield",     "Absorbs 1 hit. Stacks 2x."),
             ("Dual-canon", "Faster fire, stacks to quad."),
             ("Boost",      "+43% / +79% max speed."),
             ("Minelayer",  "Place mine, re-press to blow.")
         ] {
-            addRightRow(label: label, value: value, labelX: labelX, valueX: valueX, y: y)
+            addLeftRow(label: label, value: value, labelX: labelX, valueX: valueX, y: y)
             y -= 22
         }
+    }
 
-        y -= 18
+    private func renderEnemiesSection(labelX: CGFloat, valueX: CGFloat, topY: CGFloat) {
+        var y = topY
         addHeading("ENEMIES", x: labelX, y: y, alignment: .left); y -= 30
         for (label, value) in [
             ("Asteroid",     "1 hit, drifts, wraps."),
