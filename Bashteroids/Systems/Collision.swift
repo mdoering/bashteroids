@@ -297,14 +297,23 @@ enum Collision {
     }
 
     @discardableResult
-    private static func hitShip(_ ship: Ship) -> Bool {
-        if ship.shieldCount > 0 {
+    static func hitShip(_ ship: Ship, damage: Int = 1) -> Bool {
+        // Shields absorb one point each, then HP soaks the rest. Survival
+        // ships have hp = 1, so any damage > 0 still kills outright; BATTLE
+        // ships have hp = Ship.maxBattleHP and can take multiple hits.
+        var remaining = damage
+        while remaining > 0 && ship.shieldCount > 0 {
             ship.shieldCount -= 1
-            return true
-        } else {
-            ship.alive = false
-            return false
+            remaining -= 1
         }
+        if remaining > 0 {
+            ship.hp -= remaining
+            if ship.hp <= 0 {
+                ship.alive = false
+                return false
+            }
+        }
+        return true
     }
 
     private static func overlap(_ a: Entity, _ b: Entity) -> Bool {

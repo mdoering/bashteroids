@@ -10,6 +10,7 @@ final class Ship: Entity {
     static let maxShieldStack: Int = 2
     static let maxCanonLevel: Int = 2           // 0 = single, 1 = dual, 2 = quad
     static let maxBoostLevel: Int = 2           // 0 = base, 1 = +43%, 2 = +79%
+    static let maxBattleHP: Int = 10            // Survival default stays at 1 (1-hit-kill).
     static let brakeDeceleration: CGFloat = 200 // px/s² when braking
 
     var effectiveReloadInterval: TimeInterval {
@@ -27,6 +28,7 @@ final class Ship: Entity {
     var velocity: CGPoint = .zero
     let radius: CGFloat = collisionRadius
     var alive: Bool = true
+    var hp: Int = 1
 
     let playerIndex: Int
     let color: SKColor

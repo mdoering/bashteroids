@@ -42,6 +42,8 @@ final class GameScene: SKScene {
 
     private let hudLayer = SKNode()
     private var scoreLabels: [SKLabelNode] = []
+    private var hpBarOutlines: [SKShapeNode] = []
+    private var hpBarFills: [SKShapeNode] = []
 
     private var safeInsetTop:    CGFloat { view?.safeAreaInsets.top    ?? 0 }
     private var safeInsetBottom: CGFloat { view?.safeAreaInsets.bottom ?? 0 }
@@ -158,7 +160,11 @@ final class GameScene: SKScene {
 
         fireUFOsIfReady()
 
-        Movement.stepWrapping(ships,    dt: dt, bounds: bounds)
+        if mode == .battle {
+            Movement.stepBouncing(ships, dt: dt, bounds: bounds)
+        } else {
+            Movement.stepWrapping(ships, dt: dt, bounds: bounds)
+        }
         Movement.stepWrapping(asteroids, dt: dt, bounds: bounds)
         Movement.stepWrapping(ufos,     dt: dt, bounds: bounds)
         Movement.stepBounded(bullets,  dt: dt, bounds: bounds)
@@ -231,6 +237,23 @@ final class GameScene: SKScene {
         for wall in walls {
             addChild(wall.node)
         }
+
+        // Static asteroids — non-moving obstacles inside the arena.
+        let cfg = LevelRoster.battleConfig(for: currentLevel)
+        var asteroidRng = SeededGenerator(seed: seed &+ 1)
+        let placements = BattleArena.generateStaticAsteroids(
+            in: playBounds,
+            count: cfg.staticAsteroids,
+            walls: walls,
+            rng: &asteroidRng)
+        for placement in placements {
+            let asteroid = Asteroid(position: placement.position,
+                                    velocity: .zero,
+                                    radius: placement.radius,
+                                    seed: placement.seed)
+            asteroids.append(asteroid)
+            addChild(asteroid.node)
+        }
     }
 
     private func spawnShipsForBattle(in bounds: CGRect) {
@@ -258,6 +281,7 @@ final class GameScene: SKScene {
                             color: slot.color,
                             position: bestPos,
                             heading: heading)
+            ship.hp = Ship.maxBattleHP
             ships.append(ship)
             addChild(ship.node)
         }
@@ -405,15 +429,13 @@ final class GameScene: SKScene {
                 for ship in ships where ship.alive {
                     let d = ship.position.distance(to: dead.position)
                     if d <= Mine.innerKillRadius {
-                        // Direct hit: shields don't save you.
-                        ship.alive = false
+                        // Direct hit: 5 damage, bypasses shields fully on
+                        // survival's 1-HP ships. BATTLE ships (10 HP) can
+                        // survive a graze if they had shields.
+                        Collision.hitShip(ship, damage: 5)
                     } else if d < Mine.explosionRadius {
-                        // Outer blast: consume a shield, otherwise die.
-                        if ship.shieldCount > 0 {
-                            ship.shieldCount -= 1
-                        } else {
-                            ship.alive = false
-                        }
+                        // Outer blast: 1 damage (shield-absorbed first).
+                        Collision.hitShip(ship, damage: 1)
                     }
                 }
                 for ufo in ufos where ufo.alive {
@@ -590,8 +612,13 @@ final class GameScene: SKScene {
 
     // MARK: - HUD
 
+    private static let hpBarWidth: CGFloat = 80
+    private static let hpBarHeight: CGFloat = 6
+
     private func buildHUD() {
         scoreLabels.removeAll()
+        hpBarOutlines.removeAll()
+        hpBarFills.removeAll()
         hudLayer.removeAllChildren()
 
         for i in 0..<manager.slots.count {
@@ -603,6 +630,21 @@ final class GameScene: SKScene {
             label.fontColor = manager.slots[i].color
             hudLayer.addChild(label)
             scoreLabels.append(label)
+
+            if mode == .battle {
+                let outline = SKShapeNode(rectOf: CGSize(width: Self.hpBarWidth, height: Self.hpBarHeight))
+                outline.strokeColor = SKColor(white: 0.6, alpha: 1)
+                outline.fillColor = .clear
+                outline.lineWidth = 1
+                hudLayer.addChild(outline)
+                hpBarOutlines.append(outline)
+
+                let fill = SKShapeNode()
+                fill.strokeColor = .clear
+                fill.fillColor = SKColor(red: 0.40, green: 0.85, blue: 0.40, alpha: 1)
+                hudLayer.addChild(fill)
+                hpBarFills.append(fill)
+            }
         }
         repositionHUD()
     }
@@ -613,7 +655,11 @@ final class GameScene: SKScene {
         let segmentWidth = size.width / CGFloat(count)
         let y = size.height - safeInsetTop - Self.hudHeight / 2
         for (i, label) in scoreLabels.enumerated() {
-            label.position = CGPoint(x: segmentWidth * (CGFloat(i) + 0.5), y: y)
+            let cx = segmentWidth * (CGFloat(i) + 0.5)
+            label.position = CGPoint(x: cx, y: y)
+            if mode == .battle, i < hpBarOutlines.count {
+                hpBarOutlines[i].position = CGPoint(x: cx, y: y - 14)
+            }
         }
     }
 
@@ -623,16 +669,49 @@ final class GameScene: SKScene {
             let name = UserDefaults.standard.string(forKey: "player_name_\(i)") ?? "P\(i + 1)"
             if mode == .battle {
                 if ships[i].alive {
-                    label.text = "\(name)  ALIVE"
+                    label.text = name
                     label.fontColor = ships[i].color
                 } else {
                     label.text = "✕ \(name)"
                     label.fontColor = SKColor(white: 0.5, alpha: 1)
                 }
+                updateHpBar(forShipIndex: i)
             } else {
                 label.text = "\(name)  \(ships[i].score)"
             }
         }
+    }
+
+    private func updateHpBar(forShipIndex i: Int) {
+        guard i < hpBarOutlines.count, i < hpBarFills.count, i < ships.count else { return }
+        let outline = hpBarOutlines[i]
+        let fill = hpBarFills[i]
+        let ship = ships[i]
+        let hp = max(0, ship.hp)
+        let frac = CGFloat(hp) / CGFloat(Ship.maxBattleHP)
+
+        let barColor: SKColor
+        if frac > 0.5 {
+            barColor = SKColor(red: 0.40, green: 0.85, blue: 0.40, alpha: 1)   // green
+        } else if frac > 0.25 {
+            barColor = SKColor(red: 1.00, green: 0.70, blue: 0.20, alpha: 1)   // orange
+        } else {
+            barColor = SKColor(red: 0.95, green: 0.30, blue: 0.30, alpha: 1)   // red
+        }
+
+        let fillWidth = max(0, Self.hpBarWidth * frac)
+        if fillWidth <= 0 {
+            fill.path = nil
+        } else {
+            let rect = CGRect(
+                x: outline.position.x - Self.hpBarWidth / 2,
+                y: outline.position.y - Self.hpBarHeight / 2,
+                width: fillWidth,
+                height: Self.hpBarHeight
+            )
+            fill.path = CGPath(rect: rect, transform: nil)
+        }
+        fill.fillColor = barColor
     }
 
     private func finish(winner: Ship?) {

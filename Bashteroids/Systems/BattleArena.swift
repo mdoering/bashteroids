@@ -1,8 +1,10 @@
 import SpriteKit
 
 enum BattleArena {
-    static let edgeMargin: CGFloat = 80
+    static let edgeMargin: CGFloat = 200       // walls cluster centrally; perimeter stays open for ricochet
     static let interWallMargin: CGFloat = 60
+    static let asteroidEdgeMargin: CGFloat = 100
+    static let staticAsteroidRadiusRange: ClosedRange<CGFloat> = 18...32
     static let segmentLength: CGFloat = 50
     static let segmentThickness: CGFloat = 30
     static let segmentCornerJitter: CGFloat = 5
@@ -137,6 +139,49 @@ enum BattleArena {
             if !overlapsAny(p, radius: radius, walls: walls) { return p }
         }
         return nil
+    }
+
+    /// Place static asteroids at non-overlapping spots inside the arena.
+    /// Caller constructs Asteroid entities with these (position, radius, seed)
+    /// triples and `velocity = .zero`. Asteroid placement uses a smaller
+    /// edge margin than walls so the perimeter still has some content,
+    /// just less dense than the center.
+    static func generateStaticAsteroids(in bounds: CGRect,
+                                        count: Int,
+                                        walls: [Wall],
+                                        rng: inout SeededGenerator)
+        -> [(position: CGPoint, radius: CGFloat, seed: UInt64)] {
+        guard count > 0 else { return [] }
+        let inner = bounds.insetBy(dx: asteroidEdgeMargin, dy: asteroidEdgeMargin)
+        guard inner.width > 0 && inner.height > 0 else { return [] }
+
+        var placed: [(CGPoint, CGFloat)] = []
+        var result: [(position: CGPoint, radius: CGFloat, seed: UInt64)] = []
+        let asteroidGap: CGFloat = 30   // breathing room between static asteroids
+
+        for _ in 0..<count {
+            let radius = rng.cgFloat(in: staticAsteroidRadiusRange)
+            var picked: CGPoint?
+            for _ in 0..<placementTries {
+                let p = CGPoint(x: rng.cgFloat(in: inner.minX...inner.maxX),
+                                y: rng.cgFloat(in: inner.minY...inner.maxY))
+                if overlapsAny(p, radius: radius, walls: walls) { continue }
+                var clashes = false
+                for (q, qr) in placed {
+                    let need = qr + radius + asteroidGap
+                    if p.distanceSquared(to: q) < need * need { clashes = true; break }
+                }
+                if !clashes {
+                    picked = p
+                    break
+                }
+            }
+            if let pos = picked {
+                placed.append((pos, radius))
+                result.append((position: pos, radius: radius, seed: rng.next()))
+            }
+        }
+        return result
     }
 
     // MARK: - Ship-vs-wall reflection

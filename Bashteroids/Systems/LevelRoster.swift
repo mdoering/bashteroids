@@ -53,22 +53,23 @@ enum LevelRoster {
 struct BattleConfig {
     let walls: Int
     let mazeClusters: Int
+    let staticAsteroids: Int
 }
 
 extension LevelRoster {
     static func battleConfig(for level: Int) -> BattleConfig {
         let l = max(1, min(9, level))
         switch l {
-        case 1: return BattleConfig(walls: 3,  mazeClusters: 0)
-        case 2: return BattleConfig(walls: 4,  mazeClusters: 0)
-        case 3: return BattleConfig(walls: 5,  mazeClusters: 0)
-        case 4: return BattleConfig(walls: 5,  mazeClusters: 1)
-        case 5: return BattleConfig(walls: 6,  mazeClusters: 1)
-        case 6: return BattleConfig(walls: 7,  mazeClusters: 1)
-        case 7: return BattleConfig(walls: 8,  mazeClusters: 2)
-        case 8: return BattleConfig(walls: 9,  mazeClusters: 2)
-        case 9: return BattleConfig(walls: 10, mazeClusters: 3)
-        default: return BattleConfig(walls: 3, mazeClusters: 0)
+        case 1: return BattleConfig(walls: 3,  mazeClusters: 0, staticAsteroids: 0)
+        case 2: return BattleConfig(walls: 4,  mazeClusters: 0, staticAsteroids: 1)
+        case 3: return BattleConfig(walls: 5,  mazeClusters: 0, staticAsteroids: 2)
+        case 4: return BattleConfig(walls: 5,  mazeClusters: 1, staticAsteroids: 3)
+        case 5: return BattleConfig(walls: 6,  mazeClusters: 1, staticAsteroids: 4)
+        case 6: return BattleConfig(walls: 7,  mazeClusters: 1, staticAsteroids: 5)
+        case 7: return BattleConfig(walls: 8,  mazeClusters: 2, staticAsteroids: 6)
+        case 8: return BattleConfig(walls: 9,  mazeClusters: 2, staticAsteroids: 7)
+        case 9: return BattleConfig(walls: 10, mazeClusters: 3, staticAsteroids: 8)
+        default: return BattleConfig(walls: 3, mazeClusters: 0, staticAsteroids: 0)
         }
     }
 }
