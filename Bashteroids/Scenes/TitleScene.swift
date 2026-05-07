@@ -1,6 +1,5 @@
 import SpriteKit
 import GameController
-import UIKit
 
 final class TitleScene: SKScene {
     private let manager = ControllerManager.shared
@@ -18,7 +17,6 @@ final class TitleScene: SKScene {
     private var modeLabel: SKLabelNode!
     private var levelLabel: SKLabelNode!
     private var battleHintLabel: SKLabelNode!
-    private var helpButton: SKShapeNode!
     private var dpadEdge: [ObjectIdentifier: (left: Bool, right: Bool, up: Bool, down: Bool)] = [:]
 
     override func didMove(to view: SKView) {
@@ -164,21 +162,13 @@ final class TitleScene: SKScene {
         addChild(battleHint)
         self.battleHintLabel = battleHint
 
-        let helpBtn = SKShapeNode(circleOfRadius: 22)
-        helpBtn.position = CGPoint(x: size.width - 50, y: 50)
-        helpBtn.strokeColor = SKColor(white: 0.55, alpha: 1)
-        helpBtn.fillColor = .clear
-        helpBtn.lineWidth = 1.5
-        addChild(helpBtn)
-
-        let helpQ = SKLabelNode(text: "?")
-        helpQ.fontName = "AvenirNext-Bold"
-        helpQ.fontSize = 22
-        helpQ.fontColor = SKColor(white: 0.55, alpha: 1)
-        helpQ.verticalAlignmentMode = .center
-        helpQ.horizontalAlignmentMode = .center
-        helpBtn.addChild(helpQ)
-        self.helpButton = helpBtn
+        let helpHint = SKLabelNode(text: "[H] HELP")
+        helpHint.fontName = "AvenirNext-Regular"
+        helpHint.fontSize = 14
+        helpHint.fontColor = SKColor(white: 0.55, alpha: 1)
+        helpHint.horizontalAlignmentMode = .right
+        helpHint.position = CGPoint(x: size.width - 30, y: 30)
+        addChild(helpHint)
 
         renderSelectors()
 
@@ -237,14 +227,6 @@ final class TitleScene: SKScene {
         let help = HelpScene(size: size)
         help.scaleMode = scaleMode
         view?.presentScene(help, transition: .fade(withDuration: 0.3))
-    }
-
-    override func touchesBegan(_ touches: Set<UITouch>, with event: UIEvent?) {
-        guard let t = touches.first else { return }
-        let p = t.location(in: self)
-        if helpButton != nil, helpButton.frame.contains(p) {
-            openHelp()
-        }
     }
 
     override func update(_ currentTime: TimeInterval) {

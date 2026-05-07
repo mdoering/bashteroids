@@ -1,6 +1,5 @@
 import SpriteKit
 import GameController
-import UIKit
 
 final class HelpScene: SKScene {
     private let manager = ControllerManager.shared
@@ -139,10 +138,6 @@ final class HelpScene: SKScene {
         val.verticalAlignmentMode = .top
         val.position = CGPoint(x: x + 130, y: y)
         addChild(val)
-    }
-
-    override func touchesBegan(_ touches: Set<UITouch>, with event: UIEvent?) {
-        returnToTitle()
     }
 
     private func handleKeyDown(_ code: GCKeyCode) {
