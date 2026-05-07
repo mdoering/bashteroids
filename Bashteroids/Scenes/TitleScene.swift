@@ -9,6 +9,7 @@ final class TitleScene: SKScene {
     private var transitioning = false
     private var menuWasPressed: [ObjectIdentifier: Bool] = [:]
     private var xWasPressed: [ObjectIdentifier: Bool] = [:]
+    private var aWasPressed: [ObjectIdentifier: Bool] = [:]
     private var activeNameSlot: Int? = nil
     private var nameBuffer: String = ""
     private var prevSlotCount: Int = 0
@@ -359,6 +360,24 @@ final class TitleScene: SKScene {
             let xWas = xWasPressed[id] ?? false
             if xPressed && !xWas { tryStart(); break }
             xWasPressed[id] = xPressed
+
+            // Claimed controllers: A = "confirm focused" (cycle / open help).
+            // Unclaimed controllers' A is still handled by the join handler in
+            // ControllerManager and consults intendedSlotIndex(for:). aWasPressed
+            // is updated unconditionally so a held A-press across the
+            // unclaimed→claimed transition doesn't mis-fire on the first frame
+            // post-claim.
+            let aPressed = c.extendedGamepad?.buttonA.isPressed
+                ?? c.microGamepad?.buttonA.isPressed
+                ?? false
+            let aWas = aWasPressed[id] ?? false
+            if aPressed && !aWas
+                && manager.slot(for: c) != nil
+                && !nameEntryActive
+            {
+                confirmFocused()
+            }
+            aWasPressed[id] = aPressed
         }
     }
 
