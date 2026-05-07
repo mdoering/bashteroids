@@ -299,12 +299,12 @@ final class Spawner {
         guard elapsed >= due else { return nil }
 
         let kinds: [(PowerUpKind, Int)] = [(.shield, 3), (.dualCanon, 1), (.boost, 1)]
-        let totalWeight = kinds.reduce(0) { $0 + $1.1 }
-        var pick = Int(rng.cgFloat(in: 0...CGFloat(totalWeight - 1)))
+        let totalWeight: CGFloat = kinds.reduce(0) { $0 + CGFloat($1.1) }
+        var pick = rng.cgFloat(in: 0...totalWeight)
         var chosen: PowerUpKind = .shield
         for (k, w) in kinds {
-            if pick < w { chosen = k; break }
-            pick -= w
+            if pick <= CGFloat(w) { chosen = k; break }
+            pick -= CGFloat(w)
         }
 
         let position = randomOpenSpotForPowerUp(walls: walls, rng: &rng)

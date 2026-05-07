@@ -407,7 +407,13 @@ final class GameScene: SKScene {
                                 parent: self)
                 audio.playExplosion()
                 audio.setThrust(playerIndex: ship.playerIndex, on: false)
-                ship.node.removeFromParent()
+                if mode == .battle {
+                    // Leave the wreck behind as faint debris for the rest of
+                    // the round so the arena doesn't go empty.
+                    ship.node.alpha = 0.4
+                } else {
+                    ship.node.removeFromParent()
+                }
             }
         }
 
@@ -573,7 +579,17 @@ final class GameScene: SKScene {
         for (i, label) in scoreLabels.enumerated() {
             guard i < ships.count else { continue }
             let name = UserDefaults.standard.string(forKey: "player_name_\(i)") ?? "P\(i + 1)"
-            label.text = "\(name)  \(ships[i].score)"
+            if mode == .battle {
+                if ships[i].alive {
+                    label.text = "\(name)  ALIVE"
+                    label.fontColor = ships[i].color
+                } else {
+                    label.text = "✕ \(name)"
+                    label.fontColor = SKColor(white: 0.5, alpha: 1)
+                }
+            } else {
+                label.text = "\(name)  \(ships[i].score)"
+            }
         }
     }
 
@@ -609,7 +625,7 @@ final class GameScene: SKScene {
         }
 
         run(.sequence([
-            .wait(forDuration: 1.2),
+            .wait(forDuration: 1.5),
             .run { [weak self] in
                 guard let self else { return }
                 let next = GameOverScene(size: self.size, result: result)

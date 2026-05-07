@@ -53,8 +53,20 @@ final class GameOverScene: SKScene {
             renderSubtitle(text: "SCORE  \(s)")
         case .battleWinner(let c, let name):
             renderBanner(text: "\(name) WINS", color: c)
+            let ship = Shapes.shipV(color: c, scale: 2.5)
+            ship.position = CGPoint(x: size.width / 2, y: size.height * 0.42)
+            ship.zRotation = .pi / 2
+            addChild(ship)
         case .battleDraw:
             renderBanner(text: "DRAW", color: .white)
+            let leftShip = Shapes.shipV(color: SKColor(white: 0.6, alpha: 1), scale: 2.0)
+            leftShip.position = CGPoint(x: size.width / 2 - 28, y: size.height * 0.42)
+            leftShip.zRotation = .pi / 4
+            addChild(leftShip)
+            let rightShip = Shapes.shipV(color: SKColor(white: 0.6, alpha: 1), scale: 2.0)
+            rightShip.position = CGPoint(x: size.width / 2 + 28, y: size.height * 0.42)
+            rightShip.zRotation = .pi - .pi / 4
+            addChild(rightShip)
         }
 
         let hint = SKLabelNode(text: "PRESS A · START · SPACE")
