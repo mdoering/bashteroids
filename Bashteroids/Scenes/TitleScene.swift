@@ -2,6 +2,9 @@ import SpriteKit
 import GameController
 
 final class TitleScene: SKScene {
+    private static let accentGold     = SKColor(red: 245/255, green: 194/255, blue: 66/255, alpha: 1)
+    private static let accentGoldDim  = SKColor(red: 245/255, green: 194/255, blue: 66/255, alpha: 0.4)
+
     private let manager = ControllerManager.shared
     private let slotsLayer = SKNode()
     private var transitioning = false
@@ -48,7 +51,7 @@ final class TitleScene: SKScene {
         let heading = SKLabelNode(text: "HIGHSCORES")
         heading.fontName = "AvenirNext-Bold"
         heading.fontSize = 22
-        heading.fontColor = SKColor(red: 245/255, green: 194/255, blue: 66/255, alpha: 1)
+        heading.fontColor = TitleScene.accentGold
         heading.horizontalAlignmentMode = .left
         heading.verticalAlignmentMode = .top
         heading.position = CGPoint(x: leaderboardX, y: leaderboardTopY)
@@ -101,14 +104,14 @@ final class TitleScene: SKScene {
         let modeLeft = SKLabelNode(text: "<")
         modeLeft.fontName = "AvenirNext-Regular"
         modeLeft.fontSize = 22
-        modeLeft.fontColor = SKColor(white: 0.55, alpha: 1)
+        modeLeft.fontColor = TitleScene.accentGold
         modeLeft.position = CGPoint(x: selectorX - 40, y: modeY)
         addChild(modeLeft)
 
         let modeRight = SKLabelNode(text: ">")
         modeRight.fontName = "AvenirNext-Regular"
         modeRight.fontSize = 22
-        modeRight.fontColor = SKColor(white: 0.55, alpha: 1)
+        modeRight.fontColor = TitleScene.accentGold
         modeRight.position = CGPoint(x: selectorX + 40, y: modeY)
         addChild(modeRight)
 
@@ -129,14 +132,14 @@ final class TitleScene: SKScene {
         let levelLeft = SKLabelNode(text: "<")
         levelLeft.fontName = "AvenirNext-Regular"
         levelLeft.fontSize = 22
-        levelLeft.fontColor = SKColor(white: 0.55, alpha: 1)
+        levelLeft.fontColor = TitleScene.accentGold
         levelLeft.position = CGPoint(x: selectorX - 40, y: levelY)
         addChild(levelLeft)
 
         let levelRight = SKLabelNode(text: ">")
         levelRight.fontName = "AvenirNext-Regular"
         levelRight.fontSize = 22
-        levelRight.fontColor = SKColor(white: 0.55, alpha: 1)
+        levelRight.fontColor = TitleScene.accentGold
         levelRight.position = CGPoint(x: selectorX + 40, y: levelY)
         addChild(levelRight)
 
@@ -164,9 +167,9 @@ final class TitleScene: SKScene {
         self.battleHintLabel = battleHint
 
         let helpHint = SKLabelNode(text: "[H] HELP")
-        helpHint.fontName = "AvenirNext-Regular"
+        helpHint.fontName = "AvenirNext-Bold"
         helpHint.fontSize = 14
-        helpHint.fontColor = SKColor(white: 0.55, alpha: 1)
+        helpHint.fontColor = TitleScene.accentGold
         helpHint.horizontalAlignmentMode = .right
         helpHint.position = CGPoint(x: size.width - 30, y: 30)
         addChild(helpHint)
@@ -518,16 +521,10 @@ final class TitleScene: SKScene {
         }
 
         modeLabel.text = selectedMode == .survival ? "SURVIVAL" : "BATTLE"
-        modeLabel.fontColor = selectedMode == .survival
-            ? SKColor.white
-            : SKColor(red: 1.0, green: 0.55, blue: 0.55, alpha: 1)
-
-        if !battleAvailable {
-            modeLabel.fontColor = SKColor(white: 0.6, alpha: 1)
-        }
+        modeLabel.fontColor = battleAvailable ? TitleScene.accentGold : TitleScene.accentGoldDim
 
         levelLabel.text = "L \(selectedLevel)"
-        levelLabel.fontColor = .white
+        levelLabel.fontColor = TitleScene.accentGold
 
         battleHintLabel.alpha = battleAvailable ? 0 : 1
     }
