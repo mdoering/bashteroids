@@ -108,6 +108,7 @@ final class GameScene: SKScene {
         switch code {
         case .escape:    MacFullScreen.exitIfActive()
         case .spacebar:  manager.keyboardInput.spaceDown()
+        case .keyM:      manager.keyboardInput.mPressed()
         default: break
         }
 

@@ -35,6 +35,7 @@ final class Ship: Entity {
     private let thrustFlame: SKShapeNode
     private let canonMarker: SKShapeNode
     private let boostMarker: SKShapeNode
+    private let minelayerMarker: SKShapeNode
 
     /// 0 = no shield, 1 = single ring (one absorb), 2 = double ring (two absorbs).
     /// Losing a shield also drops `canonLevel` by 1, so a hit costs both layers
@@ -66,6 +67,14 @@ final class Ship: Entity {
             boostMarker.alpha = boostLevel >= 1 ? 1 : 0
         }
     }
+
+    var minelayerArmed: Bool = false {
+        didSet {
+            guard minelayerArmed != oldValue else { return }
+            minelayerMarker.alpha = minelayerArmed ? 1 : 0
+        }
+    }
+    weak var laidMine: Mine?
 
     var effectiveMaxSpeed: CGFloat {
         switch boostLevel {
@@ -108,6 +117,11 @@ final class Ship: Entity {
         boost.alpha = 0
         n.addChild(boost)
         self.boostMarker = boost
+
+        let mineMarker = Ship.makeMinelayerMarker()
+        mineMarker.alpha = 0
+        n.addChild(mineMarker)
+        self.minelayerMarker = mineMarker
     }
 
     func update(dt: TimeInterval) {
@@ -209,6 +223,32 @@ final class Ship: Entity {
             break
         }
         return path
+    }
+
+    private static func makeMinelayerMarker() -> SKShapeNode {
+        // Tiny mine silhouette near the rear of the ship.
+        let r: CGFloat       = 2.5
+        let spikeLen: CGFloat = 2.5
+        let path = CGMutablePath()
+        for i in 0..<6 {
+            let a = CGFloat(i) / 6 * .pi * 2
+            path.move(to:    CGPoint(x: -8 + r             * cos(a), y: r             * sin(a)))
+            path.addLine(to: CGPoint(x: -8 + (r + spikeLen) * cos(a), y: (r + spikeLen) * sin(a)))
+        }
+        let n = SKShapeNode(path: path)
+        n.strokeColor = SKColor(white: 0.7, alpha: 1)
+        n.fillColor   = .clear
+        n.lineWidth   = 1
+        n.isAntialiased = true
+
+        let circle = SKShapeNode(circleOfRadius: r)
+        circle.position = CGPoint(x: -8, y: 0)
+        circle.strokeColor = SKColor(white: 0.7, alpha: 1)
+        circle.fillColor   = .clear
+        circle.lineWidth   = 1
+        circle.isAntialiased = true
+        n.addChild(circle)
+        return n
     }
 
     private static func makeBoostMarker() -> SKShapeNode {

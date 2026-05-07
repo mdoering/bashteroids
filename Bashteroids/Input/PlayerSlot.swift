@@ -4,8 +4,9 @@ import SpriteKit
 struct PlayerInput {
     var turn: CGFloat = 0                 // -1...1 (negative = left)
     var thrust: Bool = false              // held
-    var brake: Bool = false               // held — only effective if ship.hasBrakes
+    var brake: Bool = false               // held
     var firePressedThisFrame: Bool = false // edge-triggered, consumed on read
+    var minelayerActionPressedThisFrame: Bool = false // edge-triggered, consumed on read
 }
 
 final class PlayerSlot {
@@ -15,6 +16,7 @@ final class PlayerSlot {
     let keyboard: KeyboardInputState?
 
     private var firePressedEdge: Bool = false
+    private var minelayerEdge: Bool = false
 
     init(index: Int, color: SKColor, controller: GCController) {
         self.index = index
@@ -40,6 +42,8 @@ final class PlayerSlot {
 
         let edge = firePressedEdge
         firePressedEdge = false
+        let mineEdge = minelayerEdge
+        minelayerEdge = false
 
         if let gp = controller?.extendedGamepad {
             var turn = CGFloat(gp.leftThumbstick.xAxis.value)
@@ -52,17 +56,29 @@ final class PlayerSlot {
             let thrust = gp.buttonA.isPressed || gp.rightTrigger.value > 0.2 || stickY > 0.2
             let brake  = gp.buttonB.isPressed || stickY < -0.2
 
-            return PlayerInput(turn: turn, thrust: thrust, brake: brake, firePressedThisFrame: edge)
+            return PlayerInput(turn: turn,
+                               thrust: thrust,
+                               brake: brake,
+                               firePressedThisFrame: edge,
+                               minelayerActionPressedThisFrame: mineEdge)
         }
 
         if let mg = controller?.microGamepad {
             let turn = max(-1, min(1, CGFloat(mg.dpad.xAxis.value)))
             let thrust = mg.dpad.yAxis.value > 0.2
             let brake  = mg.dpad.yAxis.value < -0.2
-            return PlayerInput(turn: turn, thrust: thrust, brake: brake, firePressedThisFrame: edge)
+            return PlayerInput(turn: turn,
+                               thrust: thrust,
+                               brake: brake,
+                               firePressedThisFrame: edge,
+                               minelayerActionPressedThisFrame: false)
         }
 
-        return PlayerInput(turn: 0, thrust: false, brake: false, firePressedThisFrame: edge)
+        return PlayerInput(turn: 0,
+                           thrust: false,
+                           brake: false,
+                           firePressedThisFrame: edge,
+                           minelayerActionPressedThisFrame: mineEdge)
     }
 
     private func installFireHandler() {
@@ -73,6 +89,10 @@ final class PlayerSlot {
             gp.buttonX.pressedChangedHandler = handler
             gp.rightShoulder.pressedChangedHandler = handler
             gp.leftTrigger.pressedChangedHandler = handler
+
+            gp.buttonY.pressedChangedHandler = { [weak self] _, _, pressed in
+                if pressed { self?.minelayerEdge = true }
+            }
             return
         }
         if let mg = controller?.microGamepad {
@@ -85,6 +105,7 @@ final class PlayerSlot {
             gp.buttonX.pressedChangedHandler = nil
             gp.rightShoulder.pressedChangedHandler = nil
             gp.leftTrigger.pressedChangedHandler = nil
+            gp.buttonY.pressedChangedHandler = nil
             return
         }
         if let mg = controller?.microGamepad {
