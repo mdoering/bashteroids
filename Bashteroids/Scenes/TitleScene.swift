@@ -371,19 +371,16 @@ final class TitleScene: SKScene {
 
         if activeNameSlot == nil {
             switch code {
-            case .keyM, .rightArrow: cycleMode(by:  1); return
-            case .leftArrow:         cycleMode(by: -1); return
-            case .upArrow:           cycleLevel(by:  1); return
-            case .downArrow:         cycleLevel(by: -1); return
+            case .upArrow:    moveFocus(by: -1); return
+            case .downArrow:  moveFocus(by:  1); return
+            case .leftArrow:  cycleFocusedHorizontal(by: -1); return
+            case .rightArrow: cycleFocusedHorizontal(by:  1); return
+            case .keyH:       openHelp(); return
+            #if DEBUG
+            case .keyD:       manager.claimDummy(); return
+            #endif
             default: break
             }
-
-            #if DEBUG
-            if code == .keyD {
-                manager.claimDummy()
-                return
-            }
-            #endif
         }
 
         switch code {
@@ -400,10 +397,12 @@ final class TitleScene: SKScene {
                 manager.setJoinEnabled(false)
                 renderSlots()
             }
-        case .keyH:
-            openHelp()
         case .spacebar, .returnOrEnter, .keypadEnter:
-            tryStart()
+            if focused == .help && activeNameSlot == nil {
+                openHelp()
+            } else {
+                tryStart()
+            }
         case .escape:
             MacFullScreen.exitIfActive()
         default:
@@ -595,6 +594,30 @@ final class TitleScene: SKScene {
         if !battleAvailable { return }
         selectedMode = (selectedMode == .survival) ? .battle : .survival
         renderSelectors()
+    }
+
+    private func moveFocus(by delta: Int) {
+        let items = FocusItem.allCases
+        let i = items.firstIndex(of: focused) ?? 0
+        let next = (i + delta + items.count) % items.count
+        focused = items[next]
+        renderSelectors()
+    }
+
+    private func cycleFocusedHorizontal(by delta: Int) {
+        switch focused {
+        case .mode:  cycleMode(by: delta)
+        case .level: cycleLevel(by: delta)
+        case .help:  break
+        }
+    }
+
+    private func confirmFocused() {
+        switch focused {
+        case .mode:  cycleMode(by: 1)
+        case .level: cycleLevel(by: 1)
+        case .help:  openHelp()
+        }
     }
 
     private func cycleLevel(by delta: Int) {
