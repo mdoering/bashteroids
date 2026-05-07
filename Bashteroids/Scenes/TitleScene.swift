@@ -330,10 +330,19 @@ final class TitleScene: SKScene {
                 return false
             }()
             if !nameEntryActive {
-                if curr.left  && !prev.left  { cycleMode(by: -1) }
-                if curr.right && !prev.right { cycleMode(by:  1) }
-                if curr.up    && !prev.up    { cycleLevel(by:  1) }
-                if curr.down  && !prev.down  { cycleLevel(by: -1) }
+                let isClaimed = manager.slot(for: c) != nil
+
+                if curr.up    && !prev.up    { moveFocus(by: -1) }
+                if curr.down  && !prev.down  { moveFocus(by:  1) }
+
+                if curr.left && !prev.left {
+                    if isClaimed { cycleFocusedHorizontal(by: -1) }
+                    else         { previewSlot(controller: c, by: -1) }
+                }
+                if curr.right && !prev.right {
+                    if isClaimed { cycleFocusedHorizontal(by:  1) }
+                    else         { previewSlot(controller: c, by:  1) }
+                }
             }
             dpadEdge[id] = curr
 
@@ -610,6 +619,16 @@ final class TitleScene: SKScene {
         case .level: cycleLevel(by: delta)
         case .help:  break
         }
+    }
+
+    private func previewSlot(controller: GCController, by delta: Int) {
+        let empty = manager.emptySlotIndices()
+        guard !empty.isEmpty else { return }
+        let curr = manager.intendedSlotIndex(for: controller)
+        let i = empty.firstIndex(of: curr) ?? 0
+        let next = empty[(i + delta + empty.count) % empty.count]
+        manager.setIntendedSlotIndex(next, for: controller)
+        renderSlots()
     }
 
     private func confirmFocused() {
