@@ -40,12 +40,19 @@ final class AudioEngine {
     func setThrust(playerIndex: Int, on: Bool) {
         guard thrustPool.indices.contains(playerIndex) else { return }
         let node = thrustPool[playerIndex]
-        if !node.isPlaying { node.play() }
-        node.volume = on ? 0.35 : 0
+        if on {
+            if !node.isPlaying {
+                node.scheduleBuffer(thrustLoopBuffer, at: nil, options: .loops, completionHandler: nil)
+                node.play()
+            }
+            node.volume = 0.35
+        } else if node.isPlaying {
+            node.stop()
+        }
     }
 
     func stopAllThrust() {
-        for node in thrustPool { node.volume = 0 }
+        for node in thrustPool where node.isPlaying { node.stop() }
     }
 
     // MARK: - Setup
@@ -69,12 +76,14 @@ final class AudioEngine {
             oneshotPool.append(p)
         }
 
+        // Thrust nodes are created stopped; setThrust schedules + starts the
+        // loop on demand and stops the node when thrust ends, so a dead ship
+        // can't leave a silent-but-playing loop that resurfaces audibly later.
         for _ in 0..<ControllerManager.maxPlayers {
             let p = AVAudioPlayerNode()
             engine.attach(p)
             engine.connect(p, to: engine.mainMixerNode, format: format)
-            p.scheduleBuffer(thrustLoopBuffer, at: nil, options: .loops, completionHandler: nil)
-            p.volume = 0
+            p.volume = 0.35
             thrustPool.append(p)
         }
     }
@@ -84,7 +93,6 @@ final class AudioEngine {
         do {
             try engine.start()
             for p in oneshotPool { p.play() }
-            for p in thrustPool { p.play() }
         } catch {
             print("AudioEngine: start failed: \(error)")
         }
