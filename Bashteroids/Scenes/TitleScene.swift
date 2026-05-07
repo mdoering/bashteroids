@@ -17,6 +17,7 @@ final class TitleScene: SKScene {
     private var modeLabel: SKLabelNode!
     private var levelLabel: SKLabelNode!
     private var battleHintLabel: SKLabelNode!
+    private var helpButton: SKShapeNode!
     private var dpadEdge: [ObjectIdentifier: (left: Bool, right: Bool, up: Bool, down: Bool)] = [:]
 
     override func didMove(to view: SKView) {
@@ -159,6 +160,22 @@ final class TitleScene: SKScene {
         addChild(battleHint)
         self.battleHintLabel = battleHint
 
+        let helpBtn = SKShapeNode(circleOfRadius: 22)
+        helpBtn.position = CGPoint(x: size.width - 50, y: 50)
+        helpBtn.strokeColor = SKColor(white: 0.55, alpha: 1)
+        helpBtn.fillColor = .clear
+        helpBtn.lineWidth = 1.5
+        addChild(helpBtn)
+
+        let helpQ = SKLabelNode(text: "?")
+        helpQ.fontName = "AvenirNext-Bold"
+        helpQ.fontSize = 22
+        helpQ.fontColor = SKColor(white: 0.55, alpha: 1)
+        helpQ.verticalAlignmentMode = .center
+        helpQ.horizontalAlignmentMode = .center
+        helpBtn.addChild(helpQ)
+        self.helpButton = helpBtn
+
         renderSelectors()
 
         addChild(slotsLayer)
@@ -208,6 +225,22 @@ final class TitleScene: SKScene {
         let next = GameScene(size: size, level: selectedLevel, mode: selectedMode)
         next.scaleMode = scaleMode
         view?.presentScene(next, transition: .fade(withDuration: 0.4))
+    }
+
+    private func openHelp() {
+        guard !transitioning, activeNameSlot == nil else { return }
+        transitioning = true
+        let help = HelpScene(size: size)
+        help.scaleMode = scaleMode
+        view?.presentScene(help, transition: .fade(withDuration: 0.3))
+    }
+
+    override func touchesBegan(_ touches: Set<UITouch>, with event: UIEvent?) {
+        guard let t = touches.first else { return }
+        let p = t.location(in: self)
+        if helpButton != nil, helpButton.frame.contains(p) {
+            openHelp()
+        }
     }
 
     override func update(_ currentTime: TimeInterval) {
@@ -348,6 +381,8 @@ final class TitleScene: SKScene {
                 manager.setJoinEnabled(false)
                 renderSlots()
             }
+        case .keyH:
+            openHelp()
         case .spacebar, .returnOrEnter, .keypadEnter:
             tryStart()
         case .escape:
