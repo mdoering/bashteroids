@@ -11,7 +11,7 @@ final class HelpScene: SKScene {
     private let valueColor  = SKColor(white: 0.65, alpha: 1)
 
     private enum Glyph {
-        case shield, dualCanon, boost, minelayer
+        case shield, twinLaser, boost, minelayer
         case asteroid, ufo, alien, snake, mine, rock, wallStrong, wallWeak
     }
 
@@ -103,8 +103,8 @@ final class HelpScene: SKScene {
         addHeading("POWERUPS", x: labelX, y: y, alignment: .right); y -= 30
         let rows: [(Glyph, String, String)] = [
             (.shield,    "Shield",     "Absorbs 1 hit. Stacks 2x."),
-            (.dualCanon, "Dual-canon", "Faster fire, stacks to quad."),
-            (.boost,     "Boost",      "+43% / +79% max speed."),
+            (.twinLaser, "Twin Laser", "Faster fire, stacks to quad."),
+            (.boost,     "Boost",      "+50% / +100% max speed."),
             (.minelayer, "Minelayer",  "Place mine, re-press to blow.")
         ]
         for (glyph, label, value) in rows {
@@ -197,8 +197,8 @@ final class HelpScene: SKScene {
             let n = Shapes.powerUp(kind: .shield)
             n.setScale(0.85)
             return n
-        case .dualCanon:
-            return Shapes.powerUp(kind: .dualCanon)
+        case .twinLaser:
+            return Shapes.powerUp(kind: .twinLaser)
         case .boost:
             return Shapes.powerUp(kind: .boost)
         case .minelayer:

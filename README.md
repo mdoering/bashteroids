@@ -65,7 +65,7 @@ Open the project in Xcode, set your team in *Signing & Capabilities*, change the
 Pick the mode and starting level on the title screen using the D-pad on any joined controller (or `M` and arrow up/down on a keyboard). Both selections persist between launches.
 
 - **Survival** (default): the existing single-player or co-op mode against asteroids, UFOs, alien monsters, snakes, mines, and rocks. Score-based; a run lives in the leaderboard.
-- **Battle** (2+ players required): last-ship-standing deathmatch. The arena is dotted with **elongated walls** — chains of 3–6 rough vector segments along a meandering polyline. Each segment is independently **strong** (warm gray, indestructible — bullets die, ships bounce off losing 50% of their normal-component velocity) or **weak** (warm orange, 5 hp — bullets erode the segment visually as it loses hp). A single wall can mix strong and weak segments, so some walls are solid barriers, some are tear-down-able, and many are partial. Ship-vs-ship rules from survival apply: shields absorb hits, otherwise contact kills both. No enemies spawn; powerups drip every 30-60s and vanish after 30s with a 5s fade if uncollected (60% shield, 20% dual-canon, 20% boost). Round ends when only one ship is left (or zero — that's a draw).
+- **Battle** (2+ players required): last-ship-standing deathmatch. The arena is dotted with **elongated walls** — chains of 3–6 rough vector segments along a meandering polyline. Each segment is independently **strong** (warm gray, indestructible — bullets die, ships bounce off losing 50% of their normal-component velocity) or **weak** (warm orange, 5 hp — bullets erode the segment visually as it loses hp). A single wall can mix strong and weak segments, so some walls are solid barriers, some are tear-down-able, and many are partial. Ship-vs-ship rules from survival apply: shields absorb hits, otherwise contact kills both. No enemies spawn; powerups drip every 30-60s and vanish after 30s with a 5s fade if uncollected (60% shield, 20% twin laser, 20% boost). Round ends when only one ship is left (or zero — that's a draw).
 
 Levels 1–9 control how dense the spawn / wall set is. The default level is whatever level you last reached.
 
@@ -81,7 +81,7 @@ The screen is populated by a fixed cast. Entities that enter from off-screen are
 
 | Entity     | Glow      | Health        | Behaviour                                                                                                                              | Score |
 |------------|-----------|---------------|----------------------------------------------------------------------------------------------------------------------------------------|-------|
-| **Ship**   | —         | 1 hit         | Player avatar. Thrust + turn + fire (+ brake when collected). Screen-wraps. Reload 2.0 s (1.33 s with dual-canon). Thrust shows an orange flame at the rear; collected power-ups show as small markers on the hull. | —     |
+| **Ship**   | —         | 1 hit         | Player avatar. Thrust + turn + fire (+ brake when collected). Screen-wraps. Reload 2.0 s (1.33 s with twin laser). Thrust shows an orange flame at the rear; collected power-ups show as small markers on the hull. | —     |
 | **Asteroid** | white   | 1 bullet      | Irregular hollow polygon, drifts in a straight line, screen-wraps. Speed 80–160 px/s, radius 18–32 — set per spawn from a fixed range. Appears from level 1. | 1     |
 | **UFO**    | red       | 1 bullet      | Flying saucer that sine-drifts across the screen at 140 px/s, fires aimed bullets at the nearest ship every 2.5–4.5 s. Screen-wraps. Joins from level 3. | 5     |
 | **Alien monster** | purple | 2 bullets | Saucer with downward spikes. Same drift movement as a UFO, but its laser is short-range (≤ 140 px) and fires faster (every 2.0–3.5 s). Brief alpha flash on each non-killing hit. Screen-wraps. Joins from level 5. | 10    |
@@ -99,8 +99,8 @@ Power-ups drip-feed alongside enemies starting from level 2, drift in slowly fro
 | Power-up   | Shape                                   | Effect                                                                                                                                                           |
 |------------|-----------------------------------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | **Shield**     | Cyan hexagon                       | Ship gains a cyan ring. The next collision with an asteroid, UFO, alien monster, snake, or another ship destroys *that* offender and consumes the shield — the ship survives. Mine blasts also consume the shield instead of killing the ship. **Rocks bypass shields.** Stacks up to 2: a second shield pickup adds an outer ring; each absorbed hit drops one ring. |
-| **Dual-canon** | Yellow parallel lines              | Reload drops from 2.0 s to 1.33 s. Bullets fire from alternating offsets ±4 px from the nose. Two short yellow bars appear at the front of the ship while active. Stays for the rest of the run. |
-| **Boost**      | Orange double chevron `>>`         | Increases the ship's max velocity by ~43% (from 140 px/s to 200 px/s). A second pickup raises it again to 250 px/s; further pickups do nothing. Two small orange chevrons appear at the rear of the ship while equipped. Stays for the rest of the run. |
+| **Twin Laser** | Yellow parallel lines              | Reload drops from 2.0 s to 1.33 s. Bullets fire from alternating offsets ±4 px from the nose. Two short yellow bars appear at the front of the ship while active. Stays for the rest of the run. |
+| **Boost**      | Orange double chevron `>>`         | Increases the ship's max velocity by 50% (from 140 px/s to 210 px/s). A second pickup doubles the base speed to 280 px/s; further pickups do nothing. Two small orange chevrons appear at the rear of the ship while equipped. Stays for the rest of the run. |
 | **Minelayer**  | Spiked-circle silhouette           | Arms the ship to place one mine. Press **Y** (controller) or **M** (keyboard) to drop it at the ship's current position; press again to detonate it from anywhere. The placed mine also self-detonates after 60 s. The placing player is in the blast like anyone else. One-shot — pickup is consumed by the place/detonate cycle. Not available on Siri Remote (no spare button). |
 
 ## Controls
@@ -124,5 +124,5 @@ Builds run as **Debug** (`Product → Run` in Xcode, or `-configuration Debug` f
 
 - **In-game spawn-on-keystroke:**
   - `1` asteroid · `2` UFO · `3` mine · `4` rock · `5` alien monster · `6` snake
-  - `Shift+1` shield · `Shift+2` dual-canon · `Shift+3` boost · `Shift+4` minelayer
+  - `Shift+1` shield · `Shift+2` twin-laser · `Shift+3` boost · `Shift+4` minelayer
   Entities spawn from a random screen edge with no warning glow; mines drop at a random interior point.

@@ -147,7 +147,7 @@ enum Shapes {
     static func powerUp(kind: PowerUpKind) -> SKShapeNode {
         switch kind {
         case .shield:    return shieldPowerUp()
-        case .dualCanon: return dualCanonPowerUp()
+        case .twinLaser: return twinLaserPowerUp()
         case .boost:     return boostPowerUp()
         case .minelayer: return minelayerPowerUp()
         }
@@ -188,7 +188,7 @@ enum Shapes {
         return node
     }
 
-    private static func dualCanonPowerUp() -> SKShapeNode {
+    private static func twinLaserPowerUp() -> SKShapeNode {
         let path = CGMutablePath()
         path.move(to: CGPoint(x: -8, y:  2)); path.addLine(to: CGPoint(x: 8, y:  2))
         path.move(to: CGPoint(x: -8, y: -2)); path.addLine(to: CGPoint(x: 8, y: -2))

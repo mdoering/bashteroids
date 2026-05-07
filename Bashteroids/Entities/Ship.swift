@@ -3,18 +3,18 @@ import SpriteKit
 final class Ship: Entity {
     static let thrustAccel: CGFloat = 220
     static let maxSpeed: CGFloat = 140
-    static let boostedMaxSpeedL1: CGFloat = 200
-    static let boostedMaxSpeedL2: CGFloat = 250
+    static let boostedMaxSpeedL1: CGFloat = 210     // +50% over base
+    static let boostedMaxSpeedL2: CGFloat = 280     // +100% over base
     static let turnRate: CGFloat = 4.0          // rad/s at full input
     static let reloadInterval: TimeInterval = 2.0
     static let maxShieldStack: Int = 2
-    static let maxCanonLevel: Int = 2           // 0 = single, 1 = dual, 2 = quad
-    static let maxBoostLevel: Int = 2           // 0 = base, 1 = +43%, 2 = +79%
+    static let maxLaserLevel: Int = 2           // 0 = single, 1 = twin, 2 = quad
+    static let maxBoostLevel: Int = 2           // 0 = base, 1 = +50%, 2 = +100%
     static let maxBattleHP: Int = 10            // Survival default stays at 1 (1-hit-kill).
     static let brakeDeceleration: CGFloat = 200 // px/s² when braking
 
     var effectiveReloadInterval: TimeInterval {
-        switch canonLevel {
+        switch laserLevel {
         case 1:  return Self.reloadInterval / 1.5
         case 2:  return Self.reloadInterval / 2.0
         default: return Self.reloadInterval
@@ -35,30 +35,30 @@ final class Ship: Entity {
     var score: Int = 0
 
     private let thrustFlame: SKShapeNode
-    private let canonMarker: SKShapeNode
+    private let laserMarker: SKShapeNode
     private let boostMarker: SKShapeNode
     private let minelayerMarker: SKShapeNode
 
     /// 0 = no shield, 1 = single ring (one absorb), 2 = double ring (two absorbs).
-    /// Losing a shield also drops `canonLevel` by 1, so a hit costs both layers
-    /// of upgrade at once.
+    /// Losing a shield also drops `laserLevel` by 1, so a hit costs both
+    /// layers of upgrade at once.
     var shieldCount: Int = 0 {
         didSet {
             guard shieldCount != oldValue else { return }
             if shieldCount < oldValue {
-                canonLevel = max(0, canonLevel - 1)
+                laserLevel = max(0, laserLevel - 1)
             }
             updateShieldRings()
         }
     }
 
-    /// 0 = single canon (default), 1 = dual (2 lines, +50% fire rate),
+    /// 0 = single laser (default), 1 = twin (2 lines, +50% fire rate),
     /// 2 = quad (4 lines, +100% fire rate, wider laser bullet).
-    var canonLevel: Int = 0 {
+    var laserLevel: Int = 0 {
         didSet {
-            guard canonLevel != oldValue else { return }
-            canonMarker.path = Ship.canonMarkerPath(level: canonLevel)
-            canonMarker.alpha = canonLevel > 0 ? 1 : 0
+            guard laserLevel != oldValue else { return }
+            laserMarker.path = Ship.laserMarkerPath(level: laserLevel)
+            laserMarker.alpha = laserLevel > 0 ? 1 : 0
         }
     }
 
@@ -113,7 +113,7 @@ final class Ship: Entity {
         marker.lineWidth   = 1
         marker.alpha       = 0
         n.addChild(marker)
-        self.canonMarker = marker
+        self.laserMarker = marker
 
         let boost = Ship.makeBoostMarker()
         boost.alpha = 0
@@ -161,7 +161,7 @@ final class Ship: Entity {
 
         let nosePos   = position + CGPoint.fromAngle(heading, length: Self.noseOffset)
         let bulletVel = velocity + CGPoint.fromAngle(heading, length: Self.bulletSpeed)
-        let width: CGFloat = canonLevel >= 2 ? 3.0 : 1.5
+        let width: CGFloat = laserLevel >= 2 ? 3.0 : 1.5
 
         return [Bullet(position: nosePos,
                        velocity: bulletVel,
@@ -210,7 +210,7 @@ final class Ship: Entity {
         return n
     }
 
-    private static func canonMarkerPath(level: Int) -> CGPath {
+    private static func laserMarkerPath(level: Int) -> CGPath {
         let path = CGMutablePath()
         switch level {
         case 1:

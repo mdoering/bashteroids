@@ -275,7 +275,7 @@ enum Collision {
                     pu.alive = false
                     switch pu.kind {
                     case .shield:    ship.shieldCount = min(ship.shieldCount + 1, Ship.maxShieldStack)
-                    case .dualCanon: ship.canonLevel  = min(ship.canonLevel + 1, Ship.maxCanonLevel)
+                    case .twinLaser: ship.laserLevel  = min(ship.laserLevel + 1, Ship.maxLaserLevel)
                     case .boost:     ship.boostLevel  = min(ship.boostLevel + 1, Ship.maxBoostLevel)
                     case .minelayer:
                         if !ship.minelayerArmed && ship.laidMine == nil {

@@ -170,7 +170,7 @@ final class Spawner {
             glowColor = SKColor(red: 0.55, green: 0.85, blue: 0.30, alpha: 1)
 
         case .powerUp:
-            let kinds: [PowerUpKind] = [.shield, .dualCanon, .boost, .minelayer]
+            let kinds: [PowerUpKind] = [.shield, .twinLaser, .boost, .minelayer]
             let kind = kinds.randomElement(using: &rng) ?? .shield
             pendingKind = .powerUp(kind: kind)
             glowColor = .white
@@ -300,7 +300,7 @@ final class Spawner {
 
         let kinds: [(PowerUpKind, Int)] = [
             (.shield, 3),
-            (.dualCanon, 1),
+            (.twinLaser, 1),
             (.boost, 1),
             (.minelayer, 1),
         ]
