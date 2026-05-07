@@ -47,7 +47,7 @@ final class TitleScene: SKScene {
 
         let heading = SKLabelNode(text: "HIGHSCORES")
         heading.fontName = "AvenirNext-Bold"
-        heading.fontSize = 16
+        heading.fontSize = 22
         heading.fontColor = SKColor(red: 245/255, green: 194/255, blue: 66/255, alpha: 1)
         heading.horizontalAlignmentMode = .left
         heading.verticalAlignmentMode = .top
@@ -57,10 +57,11 @@ final class TitleScene: SKScene {
         let firstEntryColor  = SKColor(red: 231/255, green: 63/255,  blue: 150/255, alpha: 1)
         let otherEntryColor  = SKColor(red: 98/255,  green: 212/255, blue: 214/255, alpha: 1)
         let nameX:  CGFloat = leaderboardX
-        let levelX: CGFloat = leaderboardX + 130
-        let scoreX: CGFloat = leaderboardX + 260
+        let levelX: CGFloat = leaderboardX + 90
+        let scoreX: CGFloat = leaderboardX + 175
+        let firstEntryGap: CGFloat = 40
         for (i, entry) in HighScore.top.enumerated() {
-            let y = leaderboardTopY - CGFloat(24 * (i + 1))
+            let y = leaderboardTopY - firstEntryGap - CGFloat(24 * i)
             let color = i == 0 ? firstEntryColor : otherEntryColor
 
             let nameLabel = SKLabelNode(text: entry.name)
