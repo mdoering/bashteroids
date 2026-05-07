@@ -11,6 +11,13 @@ final class TitleScene: SKScene {
     private var nameBuffer: String = ""
     private var prevSlotCount: Int = 0
     private var slotAWasPressed: [Int: Bool] = [:]
+    private var selectedLevel: Int = GameSettings.lastPlayedLevel
+    private var selectedMode: GameMode = GameSettings.lastMode
+
+    private var modeLabel: SKLabelNode!
+    private var levelLabel: SKLabelNode!
+    private var battleHintLabel: SKLabelNode!
+    private var dpadEdge: [ObjectIdentifier: (left: Bool, right: Bool, up: Bool, down: Bool)] = [:]
 
     override func didMove(to view: SKView) {
         backgroundColor = .black
@@ -59,16 +66,76 @@ final class TitleScene: SKScene {
         icon.position = CGPoint(x: size.width - 80, y: size.height - 90)
         addChild(icon)
 
-        #if DEBUG
-        let dbg = SKLabelNode(text: "[DEBUG] START LEVEL: \(DebugSettings.startLevel)")
-        dbg.fontName = "AvenirNext-Regular"
-        dbg.fontSize = 12
-        dbg.fontColor = SKColor(white: 0.5, alpha: 1)
-        dbg.horizontalAlignmentMode = .right
-        dbg.position = CGPoint(x: size.width - 20, y: size.height - 150)
-        dbg.name = "debug-start-level"
-        addChild(dbg)
-        #endif
+        let selectorY = size.height * 0.58
+        let selectorSpacing: CGFloat = 240
+
+        let modeLeft = SKLabelNode(text: "<")
+        modeLeft.fontName = "AvenirNext-Regular"
+        modeLeft.fontSize = 22
+        modeLeft.fontColor = SKColor(white: 0.55, alpha: 1)
+        modeLeft.position = CGPoint(x: size.width / 2 - selectorSpacing - 40, y: selectorY)
+        addChild(modeLeft)
+
+        let modeRight = SKLabelNode(text: ">")
+        modeRight.fontName = "AvenirNext-Regular"
+        modeRight.fontSize = 22
+        modeRight.fontColor = SKColor(white: 0.55, alpha: 1)
+        modeRight.position = CGPoint(x: size.width / 2 - selectorSpacing + 40, y: selectorY)
+        addChild(modeRight)
+
+        let mode = SKLabelNode(text: "")
+        mode.fontName = "AvenirNext-Bold"
+        mode.fontSize = 26
+        mode.position = CGPoint(x: size.width / 2 - selectorSpacing, y: selectorY)
+        addChild(mode)
+        self.modeLabel = mode
+
+        let modeCaption = SKLabelNode(text: "MODE")
+        modeCaption.fontName = "AvenirNext-Regular"
+        modeCaption.fontSize = 12
+        modeCaption.fontColor = SKColor(white: 0.45, alpha: 1)
+        modeCaption.position = CGPoint(x: size.width / 2 - selectorSpacing, y: selectorY - 24)
+        addChild(modeCaption)
+
+        let levelLeft = SKLabelNode(text: "<")
+        levelLeft.fontName = "AvenirNext-Regular"
+        levelLeft.fontSize = 22
+        levelLeft.fontColor = SKColor(white: 0.55, alpha: 1)
+        levelLeft.position = CGPoint(x: size.width / 2 + selectorSpacing - 40, y: selectorY)
+        addChild(levelLeft)
+
+        let levelRight = SKLabelNode(text: ">")
+        levelRight.fontName = "AvenirNext-Regular"
+        levelRight.fontSize = 22
+        levelRight.fontColor = SKColor(white: 0.55, alpha: 1)
+        levelRight.position = CGPoint(x: size.width / 2 + selectorSpacing + 40, y: selectorY)
+        addChild(levelRight)
+
+        let level = SKLabelNode(text: "")
+        level.fontName = "AvenirNext-Bold"
+        level.fontSize = 26
+        level.position = CGPoint(x: size.width / 2 + selectorSpacing, y: selectorY)
+        addChild(level)
+        self.levelLabel = level
+
+        let levelCaption = SKLabelNode(text: "LEVEL")
+        levelCaption.fontName = "AvenirNext-Regular"
+        levelCaption.fontSize = 12
+        levelCaption.fontColor = SKColor(white: 0.45, alpha: 1)
+        levelCaption.position = CGPoint(x: size.width / 2 + selectorSpacing, y: selectorY - 24)
+        addChild(levelCaption)
+
+        let battleHint = SKLabelNode(text: "BATTLE NEEDS 2+ PLAYERS")
+        battleHint.fontName = "AvenirNext-Regular"
+        battleHint.fontSize = 12
+        battleHint.fontColor = SKColor(red: 0.7, green: 0.4, blue: 0.4, alpha: 1)
+        battleHint.position = CGPoint(x: size.width / 2 - selectorSpacing,
+                                      y: selectorY - 44)
+        battleHint.alpha = 0
+        addChild(battleHint)
+        self.battleHintLabel = battleHint
+
+        renderSelectors()
 
         addChild(slotsLayer)
         renderSlots()
@@ -90,6 +157,7 @@ final class TitleScene: SKScene {
             }
             self.prevSlotCount = newCount
             self.renderSlots()
+            self.renderSelectors()
         }
         manager.onStartPressed = { [weak self] in self?.tryStart() }
         manager.setJoinEnabled(true)
@@ -107,8 +175,13 @@ final class TitleScene: SKScene {
 
     private func tryStart() {
         guard !transitioning, !manager.slots.isEmpty, activeNameSlot == nil else { return }
+        if selectedMode == .battle && manager.slots.count < 2 {
+            return
+        }
         transitioning = true
-        let next = GameScene(size: size)
+        GameSettings.lastPlayedLevel = selectedLevel
+        GameSettings.lastMode = selectedMode
+        let next = GameScene(size: size, level: selectedLevel, mode: selectedMode)
         next.scaleMode = scaleMode
         view?.presentScene(next, transition: .fade(withDuration: 0.4))
     }
@@ -155,6 +228,39 @@ final class TitleScene: SKScene {
         for c in manager.connectedControllers {
             let id = ObjectIdentifier(c)
 
+            // D-pad selector input. Treat extendedGamepad and microGamepad
+            // d-pads identically. Edge-trigger so a held d-pad doesn't spin.
+            let dx: Float
+            let dy: Float
+            if let gp = c.extendedGamepad {
+                dx = gp.dpad.xAxis.value
+                dy = gp.dpad.yAxis.value
+            } else if let mg = c.microGamepad {
+                dx = mg.dpad.xAxis.value
+                dy = mg.dpad.yAxis.value
+            } else {
+                dx = 0; dy = 0
+            }
+            let prev = dpadEdge[id] ?? (false, false, false, false)
+            let curr = (left:  dx < -0.5,
+                        right: dx >  0.5,
+                        up:    dy >  0.5,
+                        down:  dy < -0.5)
+            let nameEntryActive: Bool = {
+                if activeNameSlot != nil { return true }
+                #if os(tvOS)
+                if NameEntryCoordinator.shared.request != nil { return true }
+                #endif
+                return false
+            }()
+            if !nameEntryActive {
+                if curr.left  && !prev.left  { cycleMode(by: -1) }
+                if curr.right && !prev.right { cycleMode(by:  1) }
+                if curr.up    && !prev.up    { cycleLevel(by:  1) }
+                if curr.down  && !prev.down  { cycleLevel(by: -1) }
+            }
+            dpadEdge[id] = curr
+
             // Menu button: Siri Remote's Menu is system-reserved (returns to
             // home screen). Only poll it for MFi controllers.
             let menuPressed = c.extendedGamepad?.buttonMenu.isPressed ?? false
@@ -187,15 +293,14 @@ final class TitleScene: SKScene {
             return
         }
 
-        #if DEBUG
-        if let digit = TitleScene.digit(for: code) {
-            DebugSettings.startLevel = max(1, digit)
-            if let label = childNode(withName: "debug-start-level") as? SKLabelNode {
-                label.text = "[DEBUG] START LEVEL: \(DebugSettings.startLevel)"
+        if activeNameSlot == nil {
+            switch code {
+            case .keyM:      cycleMode(by: 1); return
+            case .upArrow:   cycleLevel(by: 1); return
+            case .downArrow: cycleLevel(by: -1); return
+            default: break
             }
-            return
         }
-        #endif
 
         switch code {
         case .keyA:
@@ -212,23 +317,6 @@ final class TitleScene: SKScene {
         }
     }
 
-    #if DEBUG
-    private static func digit(for code: GCKeyCode) -> Int? {
-        switch code {
-        case .zero:  return 0
-        case .one:   return 1
-        case .two:   return 2
-        case .three: return 3
-        case .four:  return 4
-        case .five:  return 5
-        case .six:   return 6
-        case .seven: return 7
-        case .eight: return 8
-        case .nine:  return 9
-        default:     return nil
-        }
-    }
-    #endif
 
     private static func charFor(keyCode code: GCKeyCode) -> Character? {
         switch code {
@@ -378,5 +466,42 @@ final class TitleScene: SKScene {
                 slotsLayer.addChild(nameLabel)
             }
         }
+    }
+
+    private func renderSelectors() {
+        let battleAvailable = manager.slots.count >= 2
+
+        if selectedMode == .battle && !battleAvailable {
+            selectedMode = .survival
+        }
+
+        modeLabel.text = selectedMode == .survival ? "SURVIVAL" : "BATTLE"
+        modeLabel.fontColor = selectedMode == .survival
+            ? SKColor.white
+            : SKColor(red: 1.0, green: 0.55, blue: 0.55, alpha: 1)
+
+        if !battleAvailable {
+            modeLabel.fontColor = SKColor(white: 0.6, alpha: 1)
+        }
+
+        levelLabel.text = "L \(selectedLevel)"
+        levelLabel.fontColor = .white
+
+        battleHintLabel.alpha = battleAvailable ? 0 : 1
+    }
+
+    private func cycleMode(by delta: Int) {
+        let battleAvailable = manager.slots.count >= 2
+        if !battleAvailable { return }
+        selectedMode = (selectedMode == .survival) ? .battle : .survival
+        renderSelectors()
+    }
+
+    private func cycleLevel(by delta: Int) {
+        var next = selectedLevel + delta
+        if next < 1 { next = 9 }
+        if next > 9 { next = 1 }
+        selectedLevel = next
+        renderSelectors()
     }
 }

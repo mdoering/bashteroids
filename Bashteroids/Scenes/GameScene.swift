@@ -41,10 +41,6 @@ final class GameScene: SKScene {
 
     private var safeInsets: UIEdgeInsets { view?.safeAreaInsets ?? .zero }
 
-    override convenience init(size: CGSize) {
-        self.init(size: size, level: 1, mode: .survival)
-    }
-
     init(size: CGSize, level: Int, mode: GameMode) {
         self.mode = mode
         super.init(size: size)
