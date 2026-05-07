@@ -4,54 +4,51 @@ enum WallStrength {
     case strong, weak
 }
 
-/// One destructible (or indestructible) wall. Owns 1+ chunks. Strong walls have
-/// a single chunk with .max hp. Weak walls have 4 wedge chunks with hp 5 each.
+/// One BATTLE wall. A chain of 3–6 rough quadrilateral segments arranged along
+/// a meandering polyline. Each segment's strength is independent: strong
+/// segments are indestructible, weak segments take 5 hp before vanishing.
 final class Wall: Entity {
     static let weakChunkHP: Int = 5
-    static let weakChunkCount: Int = 4
 
     static let strongStroke = SKColor(red: 0.55, green: 0.55, blue: 0.55, alpha: 1)
     static let weakStroke   = SKColor(red: 0.85, green: 0.55, blue: 0.20, alpha: 1)
 
     let node: SKNode
     var velocity: CGPoint = .zero
-    let radius: CGFloat              // bounding circle of the whole wall
+    let radius: CGFloat            // bounding circle of the whole wall
     var alive: Bool = true
-    let strength: WallStrength
     private(set) var chunks: [Chunk] = []
 
-    init(strength: WallStrength,
-         centerPosition: CGPoint,
-         radius: CGFloat,
+    init(centerPosition: CGPoint,
+         heading: CGFloat,
+         segmentCount: Int,
+         bendAmplitude: CGFloat,
+         strengthBias: CGFloat,
          seed: UInt64) {
-        self.strength = strength
-        self.radius = radius
+        // Conservative bounding-circle estimate: ignores bend.
+        let halfLen = CGFloat(segmentCount) * BattleArena.segmentLength / 2
+        let halfThick = BattleArena.segmentThickness / 2
+        self.radius = sqrt(halfLen * halfLen + halfThick * halfThick) + 2
+
         let n = SKNode()
         n.position = centerPosition
         self.node = n
 
-        let outerVerts = Shapes.wallVertices(radius: radius, seed: seed)
-        switch strength {
-        case .strong:
-            let chunk = Chunk(
-                centroid: .zero,
-                vertices: outerVerts,
-                originalVertices: outerVerts,
-                hp: .max,
-                shape: Shapes.wallChunk(vertices: outerVerts, color: Self.strongStroke),
-                index: 0
-            )
-            n.addChild(chunk.shape)
-            self.chunks = [chunk]
-        case .weak:
-            self.chunks = Wall.makeWeakWedges(from: outerVerts, parent: n)
-        }
+        var rng = SeededGenerator(seed: seed)
+        self.chunks = Wall.makeSegmentChain(
+            heading: heading,
+            segmentCount: segmentCount,
+            bendAmplitude: bendAmplitude,
+            strengthBias: strengthBias,
+            parent: n,
+            rng: &rng
+        )
     }
 
     func update(dt: TimeInterval) { /* walls don't move */ }
 
-    /// Returns true if `point` is inside any live chunk. Side effect: if the
-    /// hit chunk is weak, decrements its hp and updates the visual.
+    /// Returns true if `point` is inside any live chunk. Side effect: weak
+    /// chunks lose hp + erode, and the wall dies once all chunks are dead.
     func registerBulletHit(at point: CGPoint) -> Bool {
         let local = CGPoint(x: point.x - node.position.x,
                             y: point.y - node.position.y)
@@ -59,7 +56,7 @@ final class Wall: Entity {
         for i in 0..<chunks.count {
             guard chunks[i].alive else { continue }
             if Wall.pointInPolygon(local, polygon: chunks[i].vertices) {
-                if strength == .weak {
+                if chunks[i].strength == .weak {
                     chunks[i].hp -= 1
                     if chunks[i].hp <= 0 {
                         chunks[i].shape.removeFromParent()
@@ -79,8 +76,6 @@ final class Wall: Entity {
     private static func erodeChunk(_ chunk: inout Chunk) {
         // Pick 1-2 vertices and pull them toward the chunk's local centroid by 8-14%.
         var rng = SeededGenerator(seed: UInt64(chunk.index) * 31 + UInt64(max(0, chunk.hp)))
-        // 50/50 between pulling 1 or 2 vertices; integer truncation of the
-        // [1.0, 2.0] range was silently always 1.
         let nToMove = rng.cgFloat(in: 0...1) < 0.5 ? 1 : 2
         let count = chunk.originalVertices.count
         var newVerts = chunk.vertices
@@ -104,7 +99,7 @@ final class Wall: Entity {
         chunk.shape.alpha = 0.5 + 0.1 * CGFloat(chunk.hp)
     }
 
-    /// Standard ray-cast point-in-polygon test (CCW polygon).
+    /// Standard ray-cast point-in-polygon test (works for any simple polygon).
     static func pointInPolygon(_ p: CGPoint, polygon: [CGPoint]) -> Bool {
         var inside = false
         var j = polygon.count - 1
@@ -120,69 +115,77 @@ final class Wall: Entity {
         return inside
     }
 
-    /// Splits the wall polygon into 4 radial wedges from its centroid. Each
-    /// wedge is convex, ~90° of the perimeter, with a small inner gap so
-    /// chunks read as visually distinct from the start.
-    private static func makeWeakWedges(from outerVerts: [CGPoint], parent: SKNode) -> [Chunk] {
-        let centroid = polygonCentroid(outerVerts)
-        let count = weakChunkCount
-        var perAngleSlot: [[CGPoint]] = Array(repeating: [], count: count)
-        // Bin outer vertices by their angle relative to the centroid.
-        for v in outerVerts {
-            let a = atan2(v.y - centroid.y, v.x - centroid.x)
-            let normalized = a < 0 ? a + 2 * .pi : a
-            let slot = min(count - 1, Int(normalized / (2 * .pi) * CGFloat(count)))
-            perAngleSlot[slot].append(v)
-        }
-        // For each wedge, build a convex polygon: centroid + the slot's
-        // outer vertices (sorted by angle) with a small inset toward the
-        // centroid for the inner gap.
-        let innerGap: CGFloat = 4
+    /// Walks `segmentCount` quadrilateral segments along a polyline starting at
+    /// the wall-local origin, advancing along the current heading by
+    /// `BattleArena.segmentLength` each step and rotating the heading by a
+    /// random amount in `[-bendAmplitude, +bendAmplitude]` between segments.
+    /// Each segment rolls strong with probability `strengthBias`, else weak.
+    private static func makeSegmentChain(heading initialHeading: CGFloat,
+                                         segmentCount: Int,
+                                         bendAmplitude: CGFloat,
+                                         strengthBias: CGFloat,
+                                         parent: SKNode,
+                                         rng: inout SeededGenerator) -> [Chunk] {
+        let stepLen = BattleArena.segmentLength
+        let halfThick = BattleArena.segmentThickness / 2
+        let jitter = BattleArena.segmentCornerJitter
+
+        // Center the chain around the wall's local origin: start at -halfChain
+        // along the initial heading, end at +halfChain.
+        let halfChain = CGFloat(segmentCount) * stepLen / 2
+        let startDir = CGPoint(x: cos(initialHeading), y: sin(initialHeading))
+        var cursor = CGPoint(x: -startDir.x * halfChain,
+                             y: -startDir.y * halfChain)
+        var theta = initialHeading
+
         var chunks: [Chunk] = []
-        for (i, slotVerts) in perAngleSlot.enumerated() {
-            // Add a leading + trailing boundary point at the wedge's
-            // angular limits so all four wedges tile cleanly.
-            let startAngle = (CGFloat(i)     / CGFloat(count)) * 2 * .pi
-            let endAngle   = (CGFloat(i + 1) / CGFloat(count)) * 2 * .pi
-            let r = max(slotVerts.map { hypot($0.x - centroid.x, $0.y - centroid.y) }.max() ?? 0,
-                        20)
-            let leading  = CGPoint(x: centroid.x + r * cos(startAngle),
-                                   y: centroid.y + r * sin(startAngle))
-            let trailing = CGPoint(x: centroid.x + r * cos(endAngle),
-                                   y: centroid.y + r * sin(endAngle))
-            var ringVerts: [CGPoint] = [leading] + slotVerts + [trailing]
-            // Sort by normalized angle (0…2π) to match the binning step;
-            // raw atan2 (-π…π) would break the wedge in the 180°–270° slot
-            // because the leading-boundary point at +π would sort after
-            // slot vertices at -π+ε, producing a self-intersecting polygon.
-            let norm: (CGPoint) -> CGFloat = { v in
-                let a = atan2(v.y - centroid.y, v.x - centroid.x)
-                return a < 0 ? a + 2 * .pi : a
-            }
-            ringVerts.sort { norm($0) < norm($1) }
-            // Build wedge: ring vertices + an inset centroid point.
-            let wedge = ringVerts + [CGPoint(x: centroid.x + cos((startAngle + endAngle) / 2) * innerGap,
-                                              y: centroid.y + sin((startAngle + endAngle) / 2) * innerGap)]
-            let shape = Shapes.wallChunk(vertices: wedge, color: weakStroke)
+        chunks.reserveCapacity(segmentCount)
+
+        for i in 0..<segmentCount {
+            let dir  = CGPoint(x: cos(theta), y: sin(theta))
+            let perp = CGPoint(x: -dir.y, y: dir.x)
+            let next = CGPoint(x: cursor.x + dir.x * stepLen,
+                               y: cursor.y + dir.y * stepLen)
+
+            // Four CCW corners with per-corner jitter on x and y.
+            let backRight  = CGPoint(x: cursor.x - perp.x * halfThick + rng.cgFloat(in: -jitter...jitter),
+                                     y: cursor.y - perp.y * halfThick + rng.cgFloat(in: -jitter...jitter))
+            let frontRight = CGPoint(x: next.x   - perp.x * halfThick + rng.cgFloat(in: -jitter...jitter),
+                                     y: next.y   - perp.y * halfThick + rng.cgFloat(in: -jitter...jitter))
+            let frontLeft  = CGPoint(x: next.x   + perp.x * halfThick + rng.cgFloat(in: -jitter...jitter),
+                                     y: next.y   + perp.y * halfThick + rng.cgFloat(in: -jitter...jitter))
+            let backLeft   = CGPoint(x: cursor.x + perp.x * halfThick + rng.cgFloat(in: -jitter...jitter),
+                                     y: cursor.y + perp.y * halfThick + rng.cgFloat(in: -jitter...jitter))
+
+            let verts = [backRight, frontRight, frontLeft, backLeft]
+            let centroid = CGPoint(
+                x: (backRight.x + frontRight.x + frontLeft.x + backLeft.x) / 4,
+                y: (backRight.y + frontRight.y + frontLeft.y + backLeft.y) / 4
+            )
+
+            let isStrong = rng.cgFloat(in: 0...1) <= strengthBias
+            let strength: WallStrength = isStrong ? .strong : .weak
+            let color = isStrong ? Self.strongStroke : Self.weakStroke
+            let hp    = isStrong ? Int.max : Self.weakChunkHP
+
+            let shape = Shapes.wallChunk(vertices: verts, color: color)
             parent.addChild(shape)
+
             chunks.append(Chunk(
                 centroid: centroid,
-                vertices: wedge,
-                originalVertices: wedge,
-                hp: weakChunkHP,
+                vertices: verts,
+                originalVertices: verts,
+                hp: hp,
                 shape: shape,
-                index: i
+                index: i,
+                strength: strength
             ))
-        }
-        return chunks
-    }
 
-    private static func polygonCentroid(_ verts: [CGPoint]) -> CGPoint {
-        var cx: CGFloat = 0
-        var cy: CGFloat = 0
-        for v in verts { cx += v.x; cy += v.y }
-        let n = CGFloat(verts.count)
-        return CGPoint(x: cx / n, y: cy / n)
+            cursor = next
+            theta += rng.cgFloat(in: -bendAmplitude...bendAmplitude)
+        }
+
+        return chunks
     }
 }
 
@@ -193,6 +196,7 @@ struct Chunk {
     let originalVertices: [CGPoint]
     var hp: Int
     let shape: SKShapeNode
-    let index: Int               // 0..<weakChunkCount; used as RNG seed
+    let index: Int               // 0..<segmentCount; used as RNG seed
+    let strength: WallStrength
     var alive: Bool { hp > 0 }
 }

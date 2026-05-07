@@ -2,72 +2,111 @@ import SpriteKit
 
 enum BattleArena {
     static let edgeMargin: CGFloat = 80
-    static let interWallMargin: CGFloat = 80
-    static let strongRadiusRange: ClosedRange<CGFloat> = 35...55
-    static let weakRadiusRange:   ClosedRange<CGFloat> = 25...40
-    static let mazeClusterGap: CGFloat = 120
+    static let interWallMargin: CGFloat = 60
+    static let segmentLength: CGFloat = 50
+    static let segmentThickness: CGFloat = 30
+    static let segmentCornerJitter: CGFloat = 5
+    static let segmentCountRange: ClosedRange<Int> = 3...6
+    static let bendAmplitudeRange: ClosedRange<CGFloat> = 0...0.6
+    static let strengthBiasRange: ClosedRange<CGFloat> = 0...1
+    static let mazeClusterGap: CGFloat = 100
     static let placementTries = 50
 
-    /// Generate the wall set for a BATTLE round. Caller adds each Wall.node
+    /// Generate the wall set for a BATTLE round. Caller adds each `wall.node`
     /// as a child of the GameScene.
     static func generate(in bounds: CGRect, level: Int, seed: UInt64) -> [Wall] {
         var rng = SeededGenerator(seed: seed)
         let cfg = LevelRoster.battleConfig(for: level)
-        let scale: CGFloat = 1 + CGFloat(level - 1) * 0.05
 
         var walls: [Wall] = []
 
-        // Strong walls first.
-        for _ in 0..<cfg.strong {
-            let r = rng.cgFloat(in: strongRadiusRange) * scale
-            if let pos = pickOpenSpot(in: bounds, walls: walls, radius: r, rng: &rng) {
-                walls.append(Wall(strength: .strong,
-                                  centerPosition: pos,
-                                  radius: r,
-                                  seed: rng.next()))
-            }
-        }
+        // Maze clusters first: pairs of parallel walls forming corridors.
+        let pairWalls = min(cfg.mazeClusters * 2, cfg.walls)
+        var clustersToPlace = cfg.mazeClusters
+        var pairWallsPlaced = 0
 
-        // Weak walls — split into clustered (maze) and standalone.
-        let standaloneWeak = max(0, cfg.weak - cfg.mazeClusters * 2)
+        while clustersToPlace > 0 && pairWallsPlaced < pairWalls {
+            let (heading, segCount, bend, bias) = drawWallParams(rng: &rng)
+            let radius = wallRadius(segmentCount: segCount)
 
-        for _ in 0..<cfg.mazeClusters {
-            // A cluster is 2 weak walls in a short L (or line) ~120 px apart.
-            let r = rng.cgFloat(in: weakRadiusRange) * scale
             guard let anchor = pickOpenSpot(in: bounds, walls: walls,
-                                            radius: r, rng: &rng) else { continue }
-            walls.append(Wall(strength: .weak,
-                              centerPosition: anchor,
-                              radius: r,
-                              seed: rng.next()))
-            // Place the partner along a random cardinal direction.
-            let dir = [CGPoint(x: 1, y: 0), CGPoint(x: -1, y: 0),
-                       CGPoint(x: 0, y: 1), CGPoint(x: 0, y: -1)]
-                .randomElement(using: &rng) ?? CGPoint(x: 1, y: 0)
-            let partnerPos = CGPoint(
-                x: anchor.x + dir.x * mazeClusterGap,
-                y: anchor.y + dir.y * mazeClusterGap)
-            // Only place the partner if it's still inside bounds + clear.
-            if rectInsetByEdge(bounds).contains(partnerPos),
-               !overlapsAny(partnerPos, radius: r, walls: walls) {
-                walls.append(Wall(strength: .weak,
-                                  centerPosition: partnerPos,
-                                  radius: r,
-                                  seed: rng.next()))
+                                            radius: radius, rng: &rng) else {
+                clustersToPlace -= 1
+                continue
             }
+            walls.append(Wall(
+                centerPosition: anchor,
+                heading: heading,
+                segmentCount: segCount,
+                bendAmplitude: bend,
+                strengthBias: bias,
+                seed: rng.next()
+            ))
+            pairWallsPlaced += 1
+
+            // Partner: parallel to the primary, offset perpendicular to its
+            // initial heading by mazeClusterGap (random side). Use the
+            // partner's own radius for the overlap check.
+            let perpSign: CGFloat = rng.cgFloat(in: 0...1) < 0.5 ? 1 : -1
+            let perp = CGPoint(x: -sin(heading) * perpSign,
+                               y:  cos(heading) * perpSign)
+            let partnerPos = CGPoint(
+                x: anchor.x + perp.x * mazeClusterGap,
+                y: anchor.y + perp.y * mazeClusterGap)
+            let (_, partSeg, partBend, partBias) = drawWallParams(rng: &rng)
+            let partRadius = wallRadius(segmentCount: partSeg)
+
+            if pairWallsPlaced < pairWalls,
+               rectInsetByEdge(bounds).contains(partnerPos),
+               !overlapsAny(partnerPos, radius: partRadius, walls: walls) {
+                walls.append(Wall(
+                    centerPosition: partnerPos,
+                    heading: heading,
+                    segmentCount: partSeg,
+                    bendAmplitude: partBend,
+                    strengthBias: partBias,
+                    seed: rng.next()
+                ))
+                pairWallsPlaced += 1
+            }
+            clustersToPlace -= 1
         }
 
-        for _ in 0..<standaloneWeak {
-            let r = rng.cgFloat(in: weakRadiusRange) * scale
-            if let pos = pickOpenSpot(in: bounds, walls: walls, radius: r, rng: &rng) {
-                walls.append(Wall(strength: .weak,
-                                  centerPosition: pos,
-                                  radius: r,
-                                  seed: rng.next()))
+        // Fill remaining wall slots with single placements.
+        let remaining = cfg.walls - walls.count
+        for _ in 0..<max(0, remaining) {
+            let (heading, segCount, bend, bias) = drawWallParams(rng: &rng)
+            let radius = wallRadius(segmentCount: segCount)
+            if let pos = pickOpenSpot(in: bounds, walls: walls,
+                                      radius: radius, rng: &rng) {
+                walls.append(Wall(
+                    centerPosition: pos,
+                    heading: heading,
+                    segmentCount: segCount,
+                    bendAmplitude: bend,
+                    strengthBias: bias,
+                    seed: rng.next()
+                ))
             }
         }
 
         return walls
+    }
+
+    private static func drawWallParams(rng: inout SeededGenerator)
+        -> (heading: CGFloat, segmentCount: Int, bend: CGFloat, bias: CGFloat) {
+        let heading = rng.cgFloat(in: 0...(.pi * 2))
+        let segCount = Int(rng.cgFloat(
+            in: CGFloat(segmentCountRange.lowerBound)...(CGFloat(segmentCountRange.upperBound) + 0.999)))
+        let bend = rng.cgFloat(in: bendAmplitudeRange)
+        let bias = rng.cgFloat(in: strengthBiasRange)
+        return (heading, min(segCount, segmentCountRange.upperBound), bend, bias)
+    }
+
+    private static func wallRadius(segmentCount: Int) -> CGFloat {
+        let halfLen = CGFloat(segmentCount) * segmentLength / 2
+        let halfThick = segmentThickness / 2
+        return sqrt(halfLen * halfLen + halfThick * halfThick) + 2
     }
 
     // MARK: - Geometry helpers
@@ -111,7 +150,6 @@ enum BattleArena {
             let shipPos = ship.position
             for wall in walls where wall.alive {
                 let wallPos = wall.node.position
-                // Broad-phase: bounding circle of the whole wall.
                 let outer = wall.radius + ship.radius
                 if shipPos.distanceSquared(to: wallPos) > outer * outer { continue }
 
