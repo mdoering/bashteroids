@@ -746,7 +746,8 @@ final class GameScene: SKScene {
             }
             result = .survivalEnd(lastPlayerName: lastName,
                                   lastPlayerColor: lastColor,
-                                  totalScore: totalScore)
+                                  totalScore: totalScore,
+                                  playerCount: ships.count)
         }
 
         run(.sequence([

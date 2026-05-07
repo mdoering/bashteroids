@@ -3,7 +3,7 @@ import GameController
 
 final class GameOverScene: SKScene {
     enum Result {
-        case survivalEnd(lastPlayerName: String, lastPlayerColor: SKColor, totalScore: Int)
+        case survivalEnd(lastPlayerName: String, lastPlayerColor: SKColor, totalScore: Int, playerCount: Int)
         case battleWinner(color: SKColor, name: String)
         case battleDraw
     }
@@ -44,20 +44,22 @@ final class GameOverScene: SKScene {
         backgroundColor = .black
 
         switch result {
-        case .survivalEnd(let lastName, let lastColor, let totalScore):
+        case .survivalEnd(let lastName, let lastColor, let totalScore, let playerCount):
             renderBanner(text: "GAME OVER", color: .white)
-            let scoreLabel = SKLabelNode(text: "TEAM SCORE: \(totalScore)")
+            let scoreLabel = SKLabelNode(text: playerCount > 1 ? "TEAM SCORE: \(totalScore)" : "SCORE: \(totalScore)")
             scoreLabel.fontName = "AvenirNext-Bold"
             scoreLabel.fontSize = 32
             scoreLabel.fontColor = SKColor(red: 245/255, green: 194/255, blue: 66/255, alpha: 1)
             scoreLabel.position = CGPoint(x: size.width / 2, y: size.height * 0.45)
             addChild(scoreLabel)
-            let footer = SKLabelNode(text: "\(lastName) SURVIVED LONGEST")
-            footer.fontName = "AvenirNext-Regular"
-            footer.fontSize = 22
-            footer.fontColor = lastColor
-            footer.position = CGPoint(x: size.width / 2, y: size.height * 0.39)
-            addChild(footer)
+            if playerCount > 1 {
+                let footer = SKLabelNode(text: "\(lastName) SURVIVED LONGEST")
+                footer.fontName = "AvenirNext-Regular"
+                footer.fontSize = 22
+                footer.fontColor = lastColor
+                footer.position = CGPoint(x: size.width / 2, y: size.height * 0.39)
+                addChild(footer)
+            }
         case .battleWinner(let c, let name):
             renderBanner(text: "\(name) WINS", color: c)
             let ship = Shapes.shipV(color: c, scale: 2.5)
@@ -75,13 +77,6 @@ final class GameOverScene: SKScene {
             rightShip.zRotation = .pi - .pi / 4
             addChild(rightShip)
         }
-
-        let hint = SKLabelNode(text: "PRESS A · START · SPACE")
-        hint.fontName = "AvenirNext-Regular"
-        hint.fontSize = 18
-        hint.fontColor = SKColor(white: 0.55, alpha: 1)
-        hint.position = CGPoint(x: size.width / 2, y: size.height * 0.34)
-        addChild(hint)
 
         KeyboardManager.shared.onKeyDown = { [weak self] code in
             self?.handleKeyDown(code)
