@@ -147,6 +147,10 @@ final class GameScene: SKScene {
         Movement.stepBounded(powerUps, dt: dt, bounds: bounds)
         Movement.stepBounded(rocks, dt: dt, bounds: bounds.insetBy(dx: -60, dy: -60))
 
+        if mode == .battle && !walls.isEmpty {
+            BattleArena.reflectShipsOffWalls(ships, walls: walls)
+        }
+
         let pvpEnabled = (levelState == .spawning)
 
         Collision.resolve(ships: ships, asteroids: asteroids, ufos: ufos,
