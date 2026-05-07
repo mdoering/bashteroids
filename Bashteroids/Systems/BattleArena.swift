@@ -132,7 +132,7 @@ enum BattleArena {
         let localShip = CGPoint(x: ship.position.x - wallPos.x,
                                 y: ship.position.y - wallPos.y)
 
-        var bestPenetration: CGFloat = -.infinity
+        var bestPenetration: CGFloat = .infinity
         var bestNormal: CGPoint = .zero
 
         let n = chunk.vertices.count
@@ -148,22 +148,22 @@ enum BattleArena {
             let ny = -edge.x / len
             let normal = CGPoint(x: nx, y: ny)
 
-            // Distance from localShip to the line through (a,b).
             let toShip = CGPoint(x: localShip.x - a.x, y: localShip.y - a.y)
             let signedDist = toShip.x * normal.x + toShip.y * normal.y
 
-            if signedDist < ship.radius {
-                // Inside this edge plane (or close to it). Track the deepest
-                // edge — that's the one we reflect off.
-                let penetration = ship.radius - signedDist
-                if penetration > bestPenetration {
-                    bestPenetration = penetration
-                    bestNormal = normal
-                }
+            // Separating axis: ship is fully outside this edge plane.
+            if signedDist >= ship.radius { return false }
+
+            // SAT: track the edge with the MINIMUM penetration. That's the
+            // axis closest to separation, i.e. the correct response normal.
+            let penetration = ship.radius - signedDist
+            if penetration < bestPenetration {
+                bestPenetration = penetration
+                bestNormal = normal
             }
         }
 
-        guard bestPenetration > 0 else { return false }
+        guard bestPenetration.isFinite, bestPenetration > 0 else { return false }
 
         // Only reflect if the ship is moving INTO the wall.
         let vn = ship.velocity.x * bestNormal.x + ship.velocity.y * bestNormal.y
@@ -174,7 +174,7 @@ enum BattleArena {
             return false
         }
 
-        // Reflect velocity across the normal, with 50% energy loss.
+        // Reflect velocity across the normal, with 50% speed reduction.
         let reflectedVx = (ship.velocity.x - 2 * vn * bestNormal.x) * 0.5
         let reflectedVy = (ship.velocity.y - 2 * vn * bestNormal.y) * 0.5
         ship.velocity = CGPoint(x: reflectedVx, y: reflectedVy)
