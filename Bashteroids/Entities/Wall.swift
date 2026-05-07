@@ -130,32 +130,71 @@ final class Wall: Entity {
         let halfThick = BattleArena.segmentThickness / 2
         let jitter = BattleArena.segmentCornerJitter
 
-        // Center the chain around the wall's local origin: start at -halfChain
-        // along the initial heading, end at +halfChain.
+        // Build the polyline path: N+1 knuckles, N segment headings.
         let halfChain = CGFloat(segmentCount) * stepLen / 2
         let startDir = CGPoint(x: cos(initialHeading), y: sin(initialHeading))
-        var cursor = CGPoint(x: -startDir.x * halfChain,
-                             y: -startDir.y * halfChain)
+        var knuckles: [CGPoint] = [
+            CGPoint(x: -startDir.x * halfChain, y: -startDir.y * halfChain)
+        ]
+        var segmentHeadings: [CGFloat] = []
         var theta = initialHeading
+        for _ in 0..<segmentCount {
+            segmentHeadings.append(theta)
+            let dir = CGPoint(x: cos(theta), y: sin(theta))
+            let last = knuckles[knuckles.count - 1]
+            knuckles.append(CGPoint(x: last.x + dir.x * stepLen,
+                                    y: last.y + dir.y * stepLen))
+            theta += rng.cgFloat(in: -bendAmplitude...bendAmplitude)
+        }
 
+        // For each knuckle, compute its "wall direction" — endpoint knuckles
+        // use the single adjacent segment's heading; interior knuckles use
+        // the bisector (mean) of the two adjacent segment headings. Then
+        // compute one perpendicular per knuckle.
+        var perps: [CGPoint] = []
+        for k in 0..<knuckles.count {
+            let theta_k: CGFloat
+            if k == 0 {
+                theta_k = segmentHeadings[0]
+            } else if k == knuckles.count - 1 {
+                theta_k = segmentHeadings[segmentHeadings.count - 1]
+            } else {
+                // Bisector via averaged direction vector (handles wrap-around).
+                let a = segmentHeadings[k - 1]
+                let b = segmentHeadings[k]
+                let avgX = cos(a) + cos(b)
+                let avgY = sin(a) + sin(b)
+                theta_k = atan2(avgY, avgX)
+            }
+            let d = CGPoint(x: cos(theta_k), y: sin(theta_k))
+            perps.append(CGPoint(x: -d.y, y: d.x))
+        }
+
+        // Two jittered edge points per knuckle.
+        var leftEdge: [CGPoint] = []
+        var rightEdge: [CGPoint] = []
+        for k in 0..<knuckles.count {
+            let p = perps[k]
+            let kn = knuckles[k]
+            leftEdge.append(CGPoint(
+                x: kn.x + p.x * halfThick + rng.cgFloat(in: -jitter...jitter),
+                y: kn.y + p.y * halfThick + rng.cgFloat(in: -jitter...jitter)
+            ))
+            rightEdge.append(CGPoint(
+                x: kn.x - p.x * halfThick + rng.cgFloat(in: -jitter...jitter),
+                y: kn.y - p.y * halfThick + rng.cgFloat(in: -jitter...jitter)
+            ))
+        }
+
+        // Build segments. Each segment's CCW corner order:
+        //   rightEdge[i], rightEdge[i+1], leftEdge[i+1], leftEdge[i]
         var chunks: [Chunk] = []
         chunks.reserveCapacity(segmentCount)
-
         for i in 0..<segmentCount {
-            let dir  = CGPoint(x: cos(theta), y: sin(theta))
-            let perp = CGPoint(x: -dir.y, y: dir.x)
-            let next = CGPoint(x: cursor.x + dir.x * stepLen,
-                               y: cursor.y + dir.y * stepLen)
-
-            // Four CCW corners with per-corner jitter on x and y.
-            let backRight  = CGPoint(x: cursor.x - perp.x * halfThick + rng.cgFloat(in: -jitter...jitter),
-                                     y: cursor.y - perp.y * halfThick + rng.cgFloat(in: -jitter...jitter))
-            let frontRight = CGPoint(x: next.x   - perp.x * halfThick + rng.cgFloat(in: -jitter...jitter),
-                                     y: next.y   - perp.y * halfThick + rng.cgFloat(in: -jitter...jitter))
-            let frontLeft  = CGPoint(x: next.x   + perp.x * halfThick + rng.cgFloat(in: -jitter...jitter),
-                                     y: next.y   + perp.y * halfThick + rng.cgFloat(in: -jitter...jitter))
-            let backLeft   = CGPoint(x: cursor.x + perp.x * halfThick + rng.cgFloat(in: -jitter...jitter),
-                                     y: cursor.y + perp.y * halfThick + rng.cgFloat(in: -jitter...jitter))
+            let backRight  = rightEdge[i]
+            let frontRight = rightEdge[i + 1]
+            let frontLeft  = leftEdge[i + 1]
+            let backLeft   = leftEdge[i]
 
             let verts = [backRight, frontRight, frontLeft, backLeft]
             let centroid = CGPoint(
@@ -163,7 +202,7 @@ final class Wall: Entity {
                 y: (backRight.y + frontRight.y + frontLeft.y + backLeft.y) / 4
             )
 
-            let isStrong = rng.cgFloat(in: 0...1) <= strengthBias
+            let isStrong = rng.cgFloat(in: 0...1) < strengthBias
             let strength: WallStrength = isStrong ? .strong : .weak
             let color = isStrong ? Self.strongStroke : Self.weakStroke
             let hp    = isStrong ? Int.max : Self.weakChunkHP
@@ -180,9 +219,6 @@ final class Wall: Entity {
                 index: i,
                 strength: strength
             ))
-
-            cursor = next
-            theta += rng.cgFloat(in: -bendAmplitude...bendAmplitude)
         }
 
         return chunks
