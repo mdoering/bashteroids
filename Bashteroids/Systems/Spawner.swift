@@ -170,7 +170,7 @@ final class Spawner {
             glowColor = SKColor(red: 0.55, green: 0.85, blue: 0.30, alpha: 1)
 
         case .powerUp:
-            let kinds: [PowerUpKind] = [.shield, .dualCanon, .boost]
+            let kinds: [PowerUpKind] = [.shield, .dualCanon, .boost, .minelayer]
             let kind = kinds.randomElement(using: &rng) ?? .shield
             pendingKind = .powerUp(kind: kind)
             glowColor = .white
@@ -298,7 +298,12 @@ final class Spawner {
         guard mode == .battle, let due = nextBattlePowerUpTime else { return nil }
         guard elapsed >= due else { return nil }
 
-        let kinds: [(PowerUpKind, Int)] = [(.shield, 3), (.dualCanon, 1), (.boost, 1)]
+        let kinds: [(PowerUpKind, Int)] = [
+            (.shield, 3),
+            (.dualCanon, 1),
+            (.boost, 1),
+            (.minelayer, 1),
+        ]
         let totalWeight: CGFloat = kinds.reduce(0) { $0 + CGFloat($1.1) }
         var pick = rng.cgFloat(in: 0...totalWeight)
         var chosen: PowerUpKind = .shield

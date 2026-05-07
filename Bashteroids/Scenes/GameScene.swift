@@ -293,6 +293,10 @@ final class GameScene: SKScene {
                     audio.playShoot()
                 }
             }
+
+            if input.minelayerActionPressedThisFrame {
+                handleMinelayerAction(ship: ship)
+            }
         }
     }
 
@@ -316,6 +320,22 @@ final class GameScene: SKScene {
             addChild(bullet.node)
             audio.playShoot()
         }
+    }
+
+    private func handleMinelayerAction(ship: Ship) {
+        if ship.minelayerArmed && ship.laidMine == nil {
+            // Place: drop a mine at the ship's current position with a 60 s timer.
+            let mine = Mine(position: ship.position, lifetimeOverride: 60)
+            mines.append(mine)
+            addChild(mine.node)
+            ship.minelayerArmed = false
+            ship.laidMine = mine
+        } else if let live = ship.laidMine, live.alive {
+            // Detonate: mark the mine as exploded; reapDead handles the blast.
+            live.alive = false
+            live.exploded = true
+        }
+        // else: no armed mine, no live placed mine — no-op.
     }
 
     private func nearestShip(to point: CGPoint) -> Ship? {

@@ -7,7 +7,7 @@ import GameController
 // Number keys spawn an entity from a random screen edge:
 //   1 = asteroid, 2 = UFO, 3 = mine (interior), 4 = rock, 5 = alien monster, 6 = snake
 // Shift+number drops a power-up that drifts inward from a random edge:
-//   Shift+1 = shield, Shift+2 = dual-canon, Shift+3 = boost
+//   Shift+1 = shield, Shift+2 = dual-canon, Shift+3 = boost, Shift+4 = minelayer
 //
 // Compiled out of Release builds via #if DEBUG.
 extension GameScene {
@@ -22,6 +22,7 @@ extension GameScene {
             case .one:   debugSpawnPowerUp(.shield)
             case .two:   debugSpawnPowerUp(.dualCanon)
             case .three: debugSpawnPowerUp(.boost)
+            case .four:  debugSpawnPowerUp(.minelayer)
             default: break
             }
         } else {
