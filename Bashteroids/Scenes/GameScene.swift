@@ -25,6 +25,7 @@ final class GameScene: SKScene {
 
     // Level state machine.
     private enum LevelState { case transitioning, spawning }
+    let mode: GameMode
     private var currentLevel: Int = 1
     private var levelState: LevelState = .transitioning
     private var transitionTime: TimeInterval = 0
@@ -40,6 +41,20 @@ final class GameScene: SKScene {
 
     private var safeInsets: UIEdgeInsets { view?.safeAreaInsets ?? .zero }
 
+    override convenience init(size: CGSize) {
+        self.init(size: size, level: 1, mode: .survival)
+    }
+
+    init(size: CGSize, level: Int, mode: GameMode) {
+        self.mode = mode
+        super.init(size: size)
+        self.currentLevel = max(1, min(9, level))
+    }
+
+    required init?(coder aDecoder: NSCoder) {
+        fatalError("init(coder:) not supported")
+    }
+
     var playBounds: CGRect {
         let insets = safeInsets
         return CGRect(
@@ -52,6 +67,7 @@ final class GameScene: SKScene {
 
     override func didMove(to view: SKView) {
         backgroundColor = .black
+        GameSettings.lastPlayedLevel = currentLevel
         spawner = Spawner(bounds: playBounds, glowParent: self)
 
         spawnShipsForJoinedPlayers(in: playBounds)
@@ -67,11 +83,6 @@ final class GameScene: SKScene {
             self?.handleKeyDown(code)
         }
 
-        #if DEBUG
-        currentLevel = max(1, DebugSettings.startLevel)
-        #else
-        currentLevel = 1
-        #endif
         levelState = .transitioning
         transitionTime = 0
         bannerStarted = false
@@ -395,6 +406,7 @@ final class GameScene: SKScene {
             || !alienMonsters.isEmpty || !snakes.isEmpty
         if !spawner.hasMoreSpawns && !killTargetsAlive {
             currentLevel += 1
+            GameSettings.lastPlayedLevel = currentLevel
             beginLevelTransition()
         }
     }
