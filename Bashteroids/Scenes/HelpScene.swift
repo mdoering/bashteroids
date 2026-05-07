@@ -48,7 +48,7 @@ final class HelpScene: SKScene {
         // Top row: input controls. Bottom row: reference cards with icons.
         // 2-row vertical gap between the two rows.
         let topRowY = size.height * 0.78
-        let bottomRowY = topRowY - (30 + 7 * 20) - (2 * 20)
+        let bottomRowY = topRowY - (30 + 7 * 22) - (2 * 22)
 
         renderControllerSection(labelX: leftLabelX,  valueX: leftValueX,  topY: topRowY)
         renderKeyboardSection(  labelX: rightLabelX, valueX: rightValueX, topY: topRowY)
@@ -73,7 +73,7 @@ final class HelpScene: SKScene {
             ("Start",     "Menu / X / Play-Pause")
         ] {
             addLeftRow(label: label, value: value, labelX: labelX, valueX: valueX, y: y)
-            y -= 20
+            y -= 22
         }
     }
 
@@ -90,7 +90,7 @@ final class HelpScene: SKScene {
             ("Start",     "Space / Enter")
         ] {
             addRightRow(label: label, value: value, labelX: labelX, valueX: valueX, y: y)
-            y -= 20
+            y -= 22
         }
     }
 
@@ -133,7 +133,7 @@ final class HelpScene: SKScene {
     private func addHeading(_ text: String, x: CGFloat, y: CGFloat, alignment: SKLabelHorizontalAlignmentMode) {
         let label = SKLabelNode(text: text)
         label.fontName = "AvenirNext-Bold"
-        label.fontSize = 18
+        label.fontSize = 20
         label.fontColor = goldColor
         label.horizontalAlignmentMode = alignment
         label.verticalAlignmentMode = .top
@@ -144,7 +144,7 @@ final class HelpScene: SKScene {
     private func addLeftRow(label: String, value: String, labelX: CGFloat, valueX: CGFloat, y: CGFloat) {
         let val = SKLabelNode(text: value)
         val.fontName = "AvenirNext-Regular"
-        val.fontSize = 14
+        val.fontSize = 16
         val.fontColor = valueColor
         val.horizontalAlignmentMode = .right
         val.verticalAlignmentMode = .top
@@ -153,7 +153,7 @@ final class HelpScene: SKScene {
 
         let lbl = SKLabelNode(text: label)
         lbl.fontName = "AvenirNext-Regular"
-        lbl.fontSize = 14
+        lbl.fontSize = 16
         lbl.fontColor = labelColor
         lbl.horizontalAlignmentMode = .right
         lbl.verticalAlignmentMode = .top
@@ -164,7 +164,7 @@ final class HelpScene: SKScene {
     private func addRightRow(label: String, value: String, labelX: CGFloat, valueX: CGFloat, y: CGFloat) {
         let lbl = SKLabelNode(text: label)
         lbl.fontName = "AvenirNext-Regular"
-        lbl.fontSize = 14
+        lbl.fontSize = 16
         lbl.fontColor = labelColor
         lbl.horizontalAlignmentMode = .left
         lbl.verticalAlignmentMode = .top
@@ -173,7 +173,7 @@ final class HelpScene: SKScene {
 
         let val = SKLabelNode(text: value)
         val.fontName = "AvenirNext-Regular"
-        val.fontSize = 14
+        val.fontSize = 16
         val.fontColor = valueColor
         val.horizontalAlignmentMode = .left
         val.verticalAlignmentMode = .top
