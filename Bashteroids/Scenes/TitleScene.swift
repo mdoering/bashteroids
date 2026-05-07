@@ -22,18 +22,20 @@ final class TitleScene: SKScene {
     override func didMove(to view: SKView) {
         backgroundColor = .black
 
-        let title = SKLabelNode(text: "BASHTEROIDS")
-        title.fontName = "AvenirNext-Bold"
-        title.fontSize = 64
-        title.fontColor = .white
-        title.position = CGPoint(x: size.width / 2, y: size.height * 0.72)
-        addChild(title)
+        // Poster background — fit-to-height, letterboxed on landscape displays.
+        let posterTexture = SKTexture(imageNamed: "Splash")
+        let posterAspect = posterTexture.size().width / max(posterTexture.size().height, 1)
+        let poster = SKSpriteNode(texture: posterTexture)
+        poster.size = CGSize(width: size.height * posterAspect, height: size.height)
+        poster.position = CGPoint(x: size.width / 2, y: size.height / 2)
+        poster.zPosition = -1
+        addChild(poster)
 
         let hint = SKLabelNode(text: "PRESS A TO JOIN  ·  START / SPACE TO BEGIN")
         hint.fontName = "AvenirNext-Regular"
         hint.fontSize = 18
         hint.fontColor = SKColor(white: 0.55, alpha: 1)
-        hint.position = CGPoint(x: size.width / 2, y: size.height * 0.20)
+        hint.position = CGPoint(x: size.width / 2, y: size.height * 0.04)
         addChild(hint)
 
         let leaderboardX: CGFloat = 30
@@ -43,18 +45,20 @@ final class TitleScene: SKScene {
         let heading = SKLabelNode(text: "HIGHSCORES")
         heading.fontName = "AvenirNext-Bold"
         heading.fontSize = 16
-        heading.fontColor = ControllerManager.playerColors[0]
+        heading.fontColor = SKColor(red: 245/255, green: 194/255, blue: 66/255, alpha: 1)
         heading.horizontalAlignmentMode = .left
         heading.verticalAlignmentMode = .top
         heading.position = CGPoint(x: leaderboardX, y: leaderboardTopY)
         addChild(heading)
 
+        let firstEntryColor  = SKColor(red: 231/255, green: 63/255,  blue: 150/255, alpha: 1)
+        let otherEntryColor  = SKColor(red: 98/255,  green: 212/255, blue: 214/255, alpha: 1)
         for (i, entry) in HighScore.top.enumerated() {
             let levelTag = entry.level.map { " L\($0)" } ?? ""
             let row = SKLabelNode(text: "\(entry.name)\(levelTag): \(entry.score)")
             row.fontName = "AvenirNext-Regular"
             row.fontSize = 14
-            row.fontColor = ControllerManager.playerColors[1]
+            row.fontColor = i == 0 ? firstEntryColor : otherEntryColor
             row.horizontalAlignmentMode = .left
             row.verticalAlignmentMode = .top
             row.position = CGPoint(x: leaderboardX,
@@ -62,31 +66,30 @@ final class TitleScene: SKScene {
             addChild(row)
         }
 
-        let icon = makeIconNode()
-        icon.position = CGPoint(x: size.width - 80, y: size.height - 90)
-        addChild(icon)
-
-        let selectorY = size.height * 0.58
-        let selectorSpacing: CGFloat = 240
+        // Selectors anchored top-right, proportional to screen size.
+        let selectorX = size.width * 0.93
+        let modeY     = size.height * 0.92
+        let levelY    = size.height * 0.84
+        let battleHintY = size.height * 0.78
 
         let modeLeft = SKLabelNode(text: "<")
         modeLeft.fontName = "AvenirNext-Regular"
         modeLeft.fontSize = 22
         modeLeft.fontColor = SKColor(white: 0.55, alpha: 1)
-        modeLeft.position = CGPoint(x: size.width / 2 - selectorSpacing - 40, y: selectorY)
+        modeLeft.position = CGPoint(x: selectorX - 40, y: modeY)
         addChild(modeLeft)
 
         let modeRight = SKLabelNode(text: ">")
         modeRight.fontName = "AvenirNext-Regular"
         modeRight.fontSize = 22
         modeRight.fontColor = SKColor(white: 0.55, alpha: 1)
-        modeRight.position = CGPoint(x: size.width / 2 - selectorSpacing + 40, y: selectorY)
+        modeRight.position = CGPoint(x: selectorX + 40, y: modeY)
         addChild(modeRight)
 
         let mode = SKLabelNode(text: "")
         mode.fontName = "AvenirNext-Bold"
         mode.fontSize = 26
-        mode.position = CGPoint(x: size.width / 2 - selectorSpacing, y: selectorY)
+        mode.position = CGPoint(x: selectorX, y: modeY)
         addChild(mode)
         self.modeLabel = mode
 
@@ -94,27 +97,27 @@ final class TitleScene: SKScene {
         modeCaption.fontName = "AvenirNext-Regular"
         modeCaption.fontSize = 12
         modeCaption.fontColor = SKColor(white: 0.45, alpha: 1)
-        modeCaption.position = CGPoint(x: size.width / 2 - selectorSpacing, y: selectorY - 24)
+        modeCaption.position = CGPoint(x: selectorX, y: modeY - 24)
         addChild(modeCaption)
 
         let levelLeft = SKLabelNode(text: "<")
         levelLeft.fontName = "AvenirNext-Regular"
         levelLeft.fontSize = 22
         levelLeft.fontColor = SKColor(white: 0.55, alpha: 1)
-        levelLeft.position = CGPoint(x: size.width / 2 + selectorSpacing - 40, y: selectorY)
+        levelLeft.position = CGPoint(x: selectorX - 40, y: levelY)
         addChild(levelLeft)
 
         let levelRight = SKLabelNode(text: ">")
         levelRight.fontName = "AvenirNext-Regular"
         levelRight.fontSize = 22
         levelRight.fontColor = SKColor(white: 0.55, alpha: 1)
-        levelRight.position = CGPoint(x: size.width / 2 + selectorSpacing + 40, y: selectorY)
+        levelRight.position = CGPoint(x: selectorX + 40, y: levelY)
         addChild(levelRight)
 
         let level = SKLabelNode(text: "")
         level.fontName = "AvenirNext-Bold"
         level.fontSize = 26
-        level.position = CGPoint(x: size.width / 2 + selectorSpacing, y: selectorY)
+        level.position = CGPoint(x: selectorX, y: levelY)
         addChild(level)
         self.levelLabel = level
 
@@ -122,15 +125,14 @@ final class TitleScene: SKScene {
         levelCaption.fontName = "AvenirNext-Regular"
         levelCaption.fontSize = 12
         levelCaption.fontColor = SKColor(white: 0.45, alpha: 1)
-        levelCaption.position = CGPoint(x: size.width / 2 + selectorSpacing, y: selectorY - 24)
+        levelCaption.position = CGPoint(x: selectorX, y: levelY - 24)
         addChild(levelCaption)
 
         let battleHint = SKLabelNode(text: "BATTLE NEEDS 2+ PLAYERS")
         battleHint.fontName = "AvenirNext-Regular"
         battleHint.fontSize = 12
         battleHint.fontColor = SKColor(red: 0.7, green: 0.4, blue: 0.4, alpha: 1)
-        battleHint.position = CGPoint(x: size.width / 2 - selectorSpacing,
-                                      y: selectorY - 44)
+        battleHint.position = CGPoint(x: selectorX, y: battleHintY)
         battleHint.alpha = 0
         addChild(battleHint)
         self.battleHintLabel = battleHint
@@ -389,26 +391,6 @@ final class TitleScene: SKScene {
         }
     }
     #endif
-
-    private func makeIconNode() -> SKNode {
-        let container = SKNode()
-
-        let rock = Shapes.asteroid(radius: 13, seed: 42)
-        rock.position = CGPoint(x: -22, y: 24)
-        container.addChild(rock)
-
-        let red = Shapes.shipV(color: ControllerManager.playerColors[0], scale: 1.3)
-        red.position = CGPoint(x: -20, y: -22)
-        red.zRotation = -2.01
-        container.addChild(red)
-
-        let blue = Shapes.shipV(color: ControllerManager.playerColors[1], scale: 1.3)
-        blue.position = CGPoint(x: 22, y: -5)
-        blue.zRotation = 0.37
-        container.addChild(blue)
-
-        return container
-    }
 
     private func renderSlots() {
         slotsLayer.removeAllChildren()

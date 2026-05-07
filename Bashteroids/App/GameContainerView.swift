@@ -25,7 +25,7 @@ struct GameContainerView: View {
     }
 
     private func makeScene(size: CGSize) -> SKScene {
-        let scene = PosterScene(size: size)
+        let scene = TitleScene(size: size)
         scene.scaleMode = .resizeFill
         return scene
     }
