@@ -4,7 +4,7 @@ enum SpawnKind {
     case asteroid(radius: CGFloat, seed: UInt64)
     case ufo(baseHeading: CGFloat, seed: UInt64)
     case alienMonster(baseHeading: CGFloat, seed: UInt64)
-    case powerUp(kind: PowerUpKind, speed: CGFloat)
+    case powerUp(kind: PowerUpKind, speed: CGFloat, lifetime: TimeInterval?)
     case mine
     case rock(radius: CGFloat, seed: UInt64)
     case snake(baseHeading: CGFloat, seed: UInt64)
@@ -221,7 +221,7 @@ final class Spawner {
             let angle = inwardAngle + rng.cgFloat(in: -0.4...0.4)
             let speed = rng.cgFloat(in: 50...90)
             let velocity = CGPoint.fromAngle(angle, length: speed)
-            return Spawn(kind: .powerUp(kind: kind, speed: speed),
+            return Spawn(kind: .powerUp(kind: kind, speed: speed, lifetime: nil),
                          position: position,
                          velocity: velocity,
                          side: p.side)
@@ -310,7 +310,7 @@ final class Spawner {
         let position = randomOpenSpotForPowerUp(walls: walls, rng: &rng)
         nextBattlePowerUpTime = elapsed + TimeInterval(rng.cgFloat(in: 30...60))
 
-        return Spawn(kind: .powerUp(kind: chosen, speed: 0),
+        return Spawn(kind: .powerUp(kind: chosen, speed: 0, lifetime: 30),
                      position: position,
                      velocity: .zero,
                      side: .top)

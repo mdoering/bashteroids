@@ -340,8 +340,9 @@ final class GameScene: SKScene {
             let ufo = UFO(position: s.position, baseHeading: baseHeading, seed: seed)
             ufos.append(ufo)
             addChild(ufo.node)
-        case .powerUp(let kind, _):
+        case .powerUp(let kind, _, let lifetime):
             let pu = PowerUp(kind: kind, position: s.position, velocity: s.velocity)
+            pu.lifetime = lifetime
             powerUps.append(pu)
             addChild(pu.node)
         case .mine:

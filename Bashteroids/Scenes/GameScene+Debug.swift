@@ -86,7 +86,7 @@ extension GameScene {
     private func debugSpawnPowerUp(_ kind: PowerUpKind) {
         let entry = randomEdgeEntry()
         let velocity = CGPoint.fromAngle(entry.inwardAngle, length: 70)
-        spawn(Spawn(kind: .powerUp(kind: kind, speed: 70),
+        spawn(Spawn(kind: .powerUp(kind: kind, speed: 70, lifetime: nil),
                     position: entry.position, velocity: velocity, side: entry.side))
     }
 
