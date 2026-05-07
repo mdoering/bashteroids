@@ -6,6 +6,8 @@ enum SpawnKind {
     case alienMonster(baseHeading: CGFloat, seed: UInt64)
     case powerUp(kind: PowerUpKind, speed: CGFloat)
     case mine
+    case rock(radius: CGFloat, seed: UInt64)
+    case snake(baseHeading: CGFloat, seed: UInt64)
 }
 
 struct Spawn {
@@ -18,13 +20,22 @@ struct Spawn {
 final class Spawner {
     static let warningDuration: TimeInterval = 3.0
     static let glowMaxAlpha: CGFloat = 0.35
+    static let spawnInterval: TimeInterval = 2.0
+    static let spawnIntervalJitter: TimeInterval = 0.4
 
     var bounds: CGRect
 
     private weak var glowParent: SKNode?
-    private var elapsed: TimeInterval = 0
-    private var timeToNextDecision: TimeInterval = 1.5
     private var rng: SeededGenerator
+
+    private var elapsed: TimeInterval = 0
+    private var timeToNextSpawn: TimeInterval = 0
+    private var queue: [QueuedKind] = []
+    private var pending: [Pending] = []
+
+    private enum QueuedKind {
+        case asteroid, ufo, alien, mine, rock, snake, powerUp
+    }
 
     private struct Pending {
         let side: ScreenSide
@@ -39,9 +50,9 @@ final class Spawner {
         case alien(seed: UInt64)
         case powerUp(kind: PowerUpKind)
         case mine
+        case rock(radius: CGFloat, speed: CGFloat, seed: UInt64)
+        case snake(seed: UInt64)
     }
-
-    private var pending: [Pending] = []
 
     init(bounds: CGRect, glowParent: SKNode, seed: UInt64 = UInt64(Date().timeIntervalSince1970 * 1000)) {
         self.bounds = bounds
@@ -49,20 +60,35 @@ final class Spawner {
         self.rng = SeededGenerator(seed: seed)
     }
 
-    func reset() {
-        elapsed = 0
-        timeToNextDecision = 1.5
+    /// Populate the queue for a fresh level. Drops any pending state.
+    func startLevel(_ config: LevelConfig) {
+        queue.removeAll(keepingCapacity: true)
         for p in pending { p.glow?.removeFromParent() }
-        pending.removeAll()
+        pending.removeAll(keepingCapacity: true)
+
+        append(.asteroid, count: config.asteroids)
+        append(.ufo,      count: config.ufos)
+        append(.alien,    count: config.aliens)
+        append(.mine,     count: config.mines)
+        append(.rock,     count: config.rocks)
+        append(.snake,    count: config.snakes)
+        append(.powerUp,  count: config.powerUps)
+        queue.shuffle(using: &rng)
+
+        elapsed = 0
+        timeToNextSpawn = 0.5
     }
+
+    /// True if there are entities still queued or mid-warning.
+    var hasMoreSpawns: Bool { !queue.isEmpty || !pending.isEmpty }
 
     func update(dt: TimeInterval) -> [Spawn] {
         elapsed += dt
-        timeToNextDecision -= dt
+        timeToNextSpawn -= dt
 
-        if timeToNextDecision <= 0 {
+        if timeToNextSpawn <= 0, !queue.isEmpty {
             scheduleNext()
-            timeToNextDecision = nextDecisionDelay()
+            timeToNextSpawn = nextSpawnDelay()
         }
 
         var ready: [Spawn] = []
@@ -81,18 +107,39 @@ final class Spawner {
         return ready
     }
 
+    // MARK: - Queue building
+
+    private func append(_ kind: QueuedKind, count: Int) {
+        for _ in 0..<count { queue.append(kind) }
+    }
+
     // MARK: - Scheduling
 
     private func scheduleNext() {
+        guard !queue.isEmpty else { return }
+        let queuedKind = queue.removeFirst()
         let side = ScreenSide.allCases.randomElement(using: &rng) ?? .top
 
         let pendingKind: PendingKind
         let glowColor: SKColor
-        if rollPowerUp() {
-            let kind: PowerUpKind = rng.cgFloat(in: 0...1) < 0.5 ? .shield : .dualCanon
-            pendingKind = .powerUp(kind: kind)
+
+        switch queuedKind {
+        case .asteroid:
+            let speed = rng.cgFloat(in: 80...160)
+            let radius = rng.cgFloat(in: 18...32)
+            pendingKind = .asteroid(radius: radius, speed: speed, seed: rng.next())
             glowColor = .white
-        } else if rollMine() {
+
+        case .ufo:
+            pendingKind = .ufo(seed: rng.next())
+            glowColor = SKColor(red: 1.0, green: 0.4, blue: 0.4, alpha: 1)
+
+        case .alien:
+            pendingKind = .alien(seed: rng.next())
+            glowColor = SKColor(red: 0.8, green: 0.3, blue: 1.0, alpha: 1)
+
+        case .mine:
+            // No edge entry, no warning glow.
             pending.append(Pending(
                 side: side,
                 glow: nil,
@@ -100,19 +147,21 @@ final class Spawner {
                 kind: .mine
             ))
             return
-        } else if rollAlien() {
-            pendingKind = .alien(seed: rng.next())
-            glowColor = SKColor(red: 0.8, green: 0.3, blue: 1.0, alpha: 1)
-        } else if rollUFO() {
-            pendingKind = .ufo(seed: rng.next())
-            glowColor = SKColor(red: 1.0, green: 0.4, blue: 0.4, alpha: 1)
-        } else {
-            let minSpeed = min(110, 60 + CGFloat(elapsed) / 180 * 50)
-            let maxSpeed = min(200, 120 + CGFloat(elapsed) / 180 * 80)
-            let speed = rng.cgFloat(in: minSpeed...maxSpeed)
-            let maxRadius = elapsed > 120 ? max(18, 32 - CGFloat(elapsed - 120) / 60 * 7) : 32
-            let radius = rng.cgFloat(in: 18...maxRadius)
-            pendingKind = .asteroid(radius: radius, speed: speed, seed: rng.next())
+
+        case .rock:
+            let radius = rng.cgFloat(in: 36...50)
+            let speed  = rng.cgFloat(in: 60...110)
+            pendingKind = .rock(radius: radius, speed: speed, seed: rng.next())
+            glowColor = SKColor(red: 0.95, green: 0.55, blue: 0.20, alpha: 1)
+
+        case .snake:
+            pendingKind = .snake(seed: rng.next())
+            glowColor = SKColor(red: 0.55, green: 0.85, blue: 0.30, alpha: 1)
+
+        case .powerUp:
+            let kinds: [PowerUpKind] = [.shield, .dualCanon, .boost]
+            let kind = kinds.randomElement(using: &rng) ?? .shield
+            pendingKind = .powerUp(kind: kind)
             glowColor = .white
         }
 
@@ -128,33 +177,11 @@ final class Spawner {
         ))
     }
 
-    private func nextDecisionDelay() -> TimeInterval {
-        // 5s at start, ramps down to ~1.2s after a couple of minutes.
-        let base = max(1.2, 5.0 - elapsed * 0.04)
-        let jitter = TimeInterval(rng.cgFloat(in: -0.4...0.4))
-        return max(0.5, base + jitter)
-    }
-
-    private func rollUFO() -> Bool {
-        let chance = min(0.35, elapsed / 60.0 * 0.35)
-        return Double(rng.cgFloat(in: 0...1)) < chance
-    }
-
-    private func rollPowerUp() -> Bool {
-        guard elapsed > 30 else { return false }
-        return Double(rng.cgFloat(in: 0...1)) < 0.15
-    }
-
-    private func rollMine() -> Bool {
-        guard elapsed > 60 else { return false }
-        let chance = min(0.20, Double((CGFloat(elapsed) - 60) / 60 * 0.20))
-        return Double(rng.cgFloat(in: 0...1)) < chance
-    }
-
-    private func rollAlien() -> Bool {
-        guard elapsed > 120 else { return false }
-        let chance = min(0.25, Double((CGFloat(elapsed) - 120) / 60 * 0.25))
-        return Double(rng.cgFloat(in: 0...1)) < chance
+    private func nextSpawnDelay() -> TimeInterval {
+        let jitter = TimeInterval(rng.cgFloat(
+            in: -CGFloat(Self.spawnIntervalJitter)...CGFloat(Self.spawnIntervalJitter)
+        ))
+        return max(0.2, Self.spawnInterval + jitter)
     }
 
     // MARK: - Spawn assembly
@@ -176,7 +203,7 @@ final class Spawner {
             let baseHeading = inwardAngle + rng.cgFloat(in: -0.4...0.4)
             return Spawn(kind: .ufo(baseHeading: baseHeading, seed: seed),
                          position: position,
-                         velocity: .zero, // UFO recomputes its own velocity
+                         velocity: .zero,
                          side: p.side)
 
         case .powerUp(let kind):
@@ -198,6 +225,21 @@ final class Spawner {
         case .mine:
             return Spawn(kind: .mine,
                          position: interiorPosition(),
+                         velocity: .zero,
+                         side: p.side)
+
+        case .rock(let radius, let speed, let seed):
+            let angle = inwardAngle + rng.cgFloat(in: -0.3...0.3)
+            let velocity = CGPoint.fromAngle(angle, length: speed)
+            return Spawn(kind: .rock(radius: radius, seed: seed),
+                         position: position,
+                         velocity: velocity,
+                         side: p.side)
+
+        case .snake(let seed):
+            let heading = inwardAngle + rng.cgFloat(in: -0.4...0.4)
+            return Spawn(kind: .snake(baseHeading: heading, seed: seed),
+                         position: position,
                          velocity: .zero,
                          side: p.side)
         }
@@ -230,10 +272,10 @@ final class Spawner {
 
     private func inwardAngle(side: ScreenSide) -> CGFloat {
         switch side {
-        case .top:    return -.pi / 2     // moving down
-        case .bottom: return  .pi / 2     // moving up
-        case .left:   return  0           // moving right
-        case .right:  return  .pi         // moving left
+        case .top:    return -.pi / 2
+        case .bottom: return  .pi / 2
+        case .left:   return  0
+        case .right:  return  .pi
         }
     }
 }

@@ -1,6 +1,6 @@
 import SpriteKit
 
-enum PowerUpKind { case shield, dualCanon }
+enum PowerUpKind { case shield, dualCanon, boost }
 
 final class PowerUp: Entity {
     let node: SKNode

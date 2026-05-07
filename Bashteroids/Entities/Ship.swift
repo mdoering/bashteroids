@@ -2,12 +2,22 @@ import SpriteKit
 
 final class Ship: Entity {
     static let thrustAccel: CGFloat = 220
-    static let maxSpeed: CGFloat = 280
+    static let maxSpeed: CGFloat = 140
+    static let boostedMaxSpeedL1: CGFloat = 200
+    static let boostedMaxSpeedL2: CGFloat = 250
     static let turnRate: CGFloat = 4.0          // rad/s at full input
     static let reloadInterval: TimeInterval = 2.0
+    static let maxShieldStack: Int = 2
+    static let maxCanonLevel: Int = 2           // 0 = single, 1 = dual, 2 = quad
+    static let maxBoostLevel: Int = 2           // 0 = base, 1 = +43%, 2 = +79%
+    static let brakeDeceleration: CGFloat = 200 // px/s² when braking
 
     var effectiveReloadInterval: TimeInterval {
-        hasDualCanon ? Self.reloadInterval / 1.5 : Self.reloadInterval
+        switch canonLevel {
+        case 1:  return Self.reloadInterval / 1.5
+        case 2:  return Self.reloadInterval / 2.0
+        default: return Self.reloadInterval
+        }
     }
     static let bulletSpeed: CGFloat = 380
     static let collisionRadius: CGFloat = 10
@@ -20,31 +30,55 @@ final class Ship: Entity {
 
     let playerIndex: Int
     let color: SKColor
-    let reloadIndicator: SKShapeNode
     var score: Int = 0
 
-    var hasShield: Bool = false {
+    private let thrustFlame: SKShapeNode
+    private let canonMarker: SKShapeNode
+    private let boostMarker: SKShapeNode
+
+    /// 0 = no shield, 1 = single ring (one absorb), 2 = double ring (two absorbs).
+    /// Losing a shield also drops `canonLevel` by 1, so a hit costs both layers
+    /// of upgrade at once.
+    var shieldCount: Int = 0 {
         didSet {
-            guard hasShield != oldValue else { return }
-            if hasShield {
-                let ring = SKShapeNode(circleOfRadius: Self.collisionRadius + 6)
-                ring.name = "shieldRing"
-                ring.strokeColor = .white
-                ring.fillColor = .clear
-                ring.lineWidth = 1
-                ring.alpha = 0.4
-                node.addChild(ring)
-            } else {
-                node.childNode(withName: "shieldRing")?.removeFromParent()
+            guard shieldCount != oldValue else { return }
+            if shieldCount < oldValue {
+                canonLevel = max(0, canonLevel - 1)
             }
+            updateShieldRings()
         }
     }
-    var hasDualCanon: Bool = false
-    private var canonAlternate: Bool = false
+
+    /// 0 = single canon (default), 1 = dual (2 lines, +50% fire rate),
+    /// 2 = quad (4 lines, +100% fire rate, wider laser bullet).
+    var canonLevel: Int = 0 {
+        didSet {
+            guard canonLevel != oldValue else { return }
+            canonMarker.path = Ship.canonMarkerPath(level: canonLevel)
+            canonMarker.alpha = canonLevel > 0 ? 1 : 0
+        }
+    }
+
+    var boostLevel: Int = 0 {
+        didSet {
+            guard boostLevel != oldValue else { return }
+            // No separate visual for L2; marker is on for any boostLevel >= 1.
+            boostMarker.alpha = boostLevel >= 1 ? 1 : 0
+        }
+    }
+
+    var effectiveMaxSpeed: CGFloat {
+        switch boostLevel {
+        case 1:  return Self.boostedMaxSpeedL1
+        case 2:  return Self.boostedMaxSpeedL2
+        default: return Self.maxSpeed
+        }
+    }
 
     var heading: CGFloat = 0                    // radians; 0 = +X
     var turnInput: CGFloat = 0                  // -1...1, set per-frame by input
     var thrusting: Bool = false                 // held; set per-frame by input
+    var braking: Bool = false                   // held; set per-frame by input
     var reloadRemaining: TimeInterval = 0
 
     init(playerIndex: Int, color: SKColor, position: CGPoint, heading: CGFloat = 0) {
@@ -57,12 +91,23 @@ final class Ship: Entity {
         n.zRotation = heading
         self.node = n
 
-        let dot = SKShapeNode(circleOfRadius: 3)
-        dot.strokeColor = color
-        dot.fillColor = color
-        dot.lineWidth = 1
-        dot.position = position + CGPoint(x: 0, y: -16)
-        self.reloadIndicator = dot
+        let flame = Ship.makeThrustFlame()
+        flame.alpha = 0
+        n.addChild(flame)
+        self.thrustFlame = flame
+
+        let marker = SKShapeNode()
+        marker.strokeColor = .yellow
+        marker.fillColor   = .clear
+        marker.lineWidth   = 1
+        marker.alpha       = 0
+        n.addChild(marker)
+        self.canonMarker = marker
+
+        let boost = Ship.makeBoostMarker()
+        boost.alpha = 0
+        n.addChild(boost)
+        self.boostMarker = boost
     }
 
     func update(dt: TimeInterval) {
@@ -74,36 +119,113 @@ final class Ship: Entity {
 
         if thrusting {
             let push = CGPoint.fromAngle(heading, length: Self.thrustAccel * CGFloat(dt))
-            velocity = (velocity + push).clampedMagnitude(to: Self.maxSpeed)
+            velocity = (velocity + push).clampedMagnitude(to: effectiveMaxSpeed)
+            thrustFlame.alpha = CGFloat.random(in: 0.6...1.0)
+            thrustFlame.xScale = CGFloat.random(in: 0.85...1.15)
+        } else {
+            thrustFlame.alpha = 0
+            if braking {
+                let speed = velocity.length
+                if speed > 0 {
+                    let newSpeed = max(0, speed - Self.brakeDeceleration * CGFloat(dt))
+                    velocity = velocity.normalized() * newSpeed
+                }
+            }
         }
 
         node.zRotation = heading
         reloadRemaining = max(0, reloadRemaining - dt)
     }
 
-    func syncVisuals() {
-        let progress = CGFloat(max(0, 1 - reloadRemaining / Self.reloadInterval))
-        reloadIndicator.fillColor = color.withAlphaComponent(progress)
-        reloadIndicator.position = position + CGPoint(x: 0, y: -16)
-    }
-
     var canFire: Bool { alive && reloadRemaining <= 0 }
 
-    func fire() -> Bullet? {
-        guard canFire else { return nil }
+    func fire() -> [Bullet] {
+        guard canFire else { return [] }
         reloadRemaining = effectiveReloadInterval
 
-        if hasDualCanon {
-            canonAlternate.toggle()
-            let side: CGFloat = canonAlternate ? 1 : -1
-            let offset = CGPoint.fromAngle(heading + side * .pi / 2, length: 4)
-            let muzzle = position + CGPoint.fromAngle(heading, length: Self.noseOffset) + offset
-            let bulletVel = velocity + CGPoint.fromAngle(heading, length: Self.bulletSpeed)
-            return Bullet(position: muzzle, velocity: bulletVel, owner: self, color: color)
-        } else {
-            let nose = position + CGPoint.fromAngle(heading, length: Self.noseOffset)
-            let bulletVel = velocity + CGPoint.fromAngle(heading, length: Self.bulletSpeed)
-            return Bullet(position: nose, velocity: bulletVel, owner: self, color: color)
+        let nosePos   = position + CGPoint.fromAngle(heading, length: Self.noseOffset)
+        let bulletVel = velocity + CGPoint.fromAngle(heading, length: Self.bulletSpeed)
+        let width: CGFloat = canonLevel >= 2 ? 3.0 : 1.5
+
+        return [Bullet(position: nosePos,
+                       velocity: bulletVel,
+                       owner: self,
+                       color: color,
+                       width: width)]
+    }
+
+    // MARK: - Visual helpers
+
+    private func updateShieldRings() {
+        node.childNode(withName: "shieldInner")?.removeFromParent()
+        node.childNode(withName: "shieldOuter")?.removeFromParent()
+        let stroke = SKColor(red: 0, green: 1, blue: 1, alpha: 1)
+        if shieldCount >= 1 {
+            let r = SKShapeNode(circleOfRadius: Self.collisionRadius + 6)
+            r.name = "shieldInner"
+            r.strokeColor = stroke
+            r.fillColor = .clear
+            r.lineWidth = 1
+            r.alpha = 0.6
+            node.addChild(r)
         }
+        if shieldCount >= 2 {
+            let r = SKShapeNode(circleOfRadius: Self.collisionRadius + 11)
+            r.name = "shieldOuter"
+            r.strokeColor = stroke
+            r.fillColor = .clear
+            r.lineWidth = 1
+            r.alpha = 0.6
+            node.addChild(r)
+        }
+    }
+
+    private static func makeThrustFlame() -> SKShapeNode {
+        let path = CGMutablePath()
+        path.move(to: CGPoint(x: -7,  y:  3))
+        path.addLine(to: CGPoint(x: -16, y: 0))
+        path.addLine(to: CGPoint(x: -7,  y: -3))
+        path.closeSubpath()
+        let n = SKShapeNode(path: path)
+        n.strokeColor = SKColor(red: 1.0, green: 0.6, blue: 0.2, alpha: 1)
+        n.fillColor   = .clear
+        n.lineWidth   = 1.5
+        n.lineJoin    = .round
+        return n
+    }
+
+    private static func canonMarkerPath(level: Int) -> CGPath {
+        let path = CGMutablePath()
+        switch level {
+        case 1:
+            path.move(to: CGPoint(x: -2, y:  3)); path.addLine(to: CGPoint(x: 8, y:  3))
+            path.move(to: CGPoint(x: -2, y: -3)); path.addLine(to: CGPoint(x: 8, y: -3))
+        case 2:
+            path.move(to: CGPoint(x: -2, y:  6)); path.addLine(to: CGPoint(x: 8, y:  6))
+            path.move(to: CGPoint(x: -2, y:  2)); path.addLine(to: CGPoint(x: 8, y:  2))
+            path.move(to: CGPoint(x: -2, y: -2)); path.addLine(to: CGPoint(x: 8, y: -2))
+            path.move(to: CGPoint(x: -2, y: -6)); path.addLine(to: CGPoint(x: 8, y: -6))
+        default:
+            break
+        }
+        return path
+    }
+
+    private static func makeBoostMarker() -> SKShapeNode {
+        // Two small chevrons pointing forward (+x): looks like ">>" trailing
+        // the ship, evoking speed. Drawn at the rear of the silhouette.
+        let path = CGMutablePath()
+        path.move(to:    CGPoint(x: -10, y:  3))
+        path.addLine(to: CGPoint(x:  -6, y:  0))
+        path.addLine(to: CGPoint(x: -10, y: -3))
+        path.move(to:    CGPoint(x:  -6, y:  3))
+        path.addLine(to: CGPoint(x:  -2, y:  0))
+        path.addLine(to: CGPoint(x:  -6, y: -3))
+        let n = SKShapeNode(path: path)
+        n.strokeColor = SKColor(red: 1.0, green: 0.6, blue: 0.2, alpha: 1)
+        n.fillColor   = .clear
+        n.lineWidth   = 1.5
+        n.lineJoin    = .miter
+        return n
     }
 }

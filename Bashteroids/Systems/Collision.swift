@@ -6,23 +6,86 @@ enum Collision {
                         ufos: [UFO],
                         alienMonsters: [AlienMonster],
                         bullets: [Bullet],
-                        powerUps: [PowerUp]) {
+                        powerUps: [PowerUp],
+                        rocks: [Rock],
+                        mines: [Mine],
+                        snakes: [Snake],
+                        shipsCollideWithEachOther: Bool) {
+
+        for rock in rocks where rock.alive {
+            for ship in ships where ship.alive {
+                if overlap(rock, ship) { ship.alive = false }
+            }
+            for ast in asteroids where ast.alive {
+                if overlap(rock, ast) { ast.alive = false }
+            }
+            for ufo in ufos where ufo.alive {
+                if overlap(rock, ufo) { ufo.alive = false }
+            }
+            for alien in alienMonsters where alien.alive {
+                if overlap(rock, alien) { alien.alive = false }
+            }
+            for bullet in bullets where bullet.alive {
+                if overlap(rock, bullet) { bullet.alive = false }
+            }
+            for pu in powerUps where pu.alive {
+                if overlap(rock, pu) { pu.alive = false }
+            }
+            for mine in mines where mine.alive {
+                if overlap(rock, mine) {
+                    mine.alive = false
+                    mine.exploded = true
+                }
+            }
+            for snake in snakes where snake.alive {
+                if snake.hitTest(point: rock.position, radius: rock.radius) {
+                    snake.alive = false
+                }
+            }
+        }
 
         for ship in ships where ship.alive {
             for ast in asteroids where ast.alive {
-                if overlap(ship, ast) { hitShip(ship); break }
+                if overlap(ship, ast) {
+                    if hitShip(ship) { ast.alive = false }
+                    break
+                }
             }
             if !ship.alive { continue }
             for ufo in ufos where ufo.alive {
-                if overlap(ship, ufo) { hitShip(ship); break }
+                if overlap(ship, ufo) {
+                    if hitShip(ship) { ufo.alive = false }
+                    break
+                }
             }
             if !ship.alive { continue }
             for alien in alienMonsters where alien.alive {
-                if overlap(ship, alien) { hitShip(ship); break }
+                if overlap(ship, alien) {
+                    if hitShip(ship) { alien.alive = false }
+                    break
+                }
             }
             if !ship.alive { continue }
-            for other in ships where other !== ship && other.alive {
-                if overlap(ship, other) { hitShip(ship); hitShip(other) }
+            for snake in snakes where snake.alive {
+                if snake.hitTest(point: ship.position, radius: ship.radius) {
+                    if hitShip(ship) {
+                        if snake.registerBulletHit() { snake.alive = false }
+                    }
+                    break
+                }
+            }
+            if !ship.alive { continue }
+            if shipsCollideWithEachOther {
+                for other in ships where other !== ship && other.alive {
+                    if overlap(ship, other) {
+                        switch (ship.shieldCount > 0, other.shieldCount > 0) {
+                        case (true,  true):  ship.shieldCount -= 1; other.shieldCount -= 1
+                        case (true,  false): ship.shieldCount -= 1; other.alive = false
+                        case (false, true):  other.shieldCount -= 1; ship.alive = false
+                        case (false, false): ship.alive = false; other.alive = false
+                        }
+                    }
+                }
             }
         }
 
@@ -50,14 +113,28 @@ enum Collision {
                 if bullet.owner === alien { continue }
                 if overlap(bullet, alien) {
                     bullet.alive = false
-                    alien.alive  = false
-                    (bullet.owner as? Ship)?.score += Score.alienMonster
+                    if alien.registerBulletHit() {
+                        alien.alive = false
+                        (bullet.owner as? Ship)?.score += Score.alienMonster
+                    }
+                    break
+                }
+            }
+            if !bullet.alive { continue }
+            for snake in snakes where snake.alive {
+                if snake.hitTest(point: bullet.position, radius: bullet.radius) {
+                    bullet.alive = false
+                    if snake.registerBulletHit() {
+                        snake.alive = false
+                        (bullet.owner as? Ship)?.score += Score.snake
+                    }
                     break
                 }
             }
             if !bullet.alive { continue }
             for ship in ships where ship.alive {
                 if bullet.owner === ship { continue }
+                if !shipsCollideWithEachOther, bullet.owner is Ship { continue }
                 if overlap(bullet, ship) {
                     bullet.alive = false
                     hitShip(ship)
@@ -72,8 +149,9 @@ enum Collision {
                 if overlap(ship, pu) {
                     pu.alive = false
                     switch pu.kind {
-                    case .shield:    if !ship.hasShield    { ship.hasShield    = true }
-                    case .dualCanon: if !ship.hasDualCanon { ship.hasDualCanon = true }
+                    case .shield:    ship.shieldCount = min(ship.shieldCount + 1, Ship.maxShieldStack)
+                    case .dualCanon: ship.canonLevel  = min(ship.canonLevel + 1, Ship.maxCanonLevel)
+                    case .boost:     ship.boostLevel  = min(ship.boostLevel + 1, Ship.maxBoostLevel)
                     }
                 }
             }
@@ -85,13 +163,17 @@ enum Collision {
         static let ufo          = 5
         static let ship         = 20
         static let alienMonster = 10
+        static let snake        = 15
     }
 
-    private static func hitShip(_ ship: Ship) {
-        if ship.hasShield {
-            ship.hasShield = false
+    @discardableResult
+    private static func hitShip(_ ship: Ship) -> Bool {
+        if ship.shieldCount > 0 {
+            ship.shieldCount -= 1
+            return true
         } else {
             ship.alive = false
+            return false
         }
     }
 

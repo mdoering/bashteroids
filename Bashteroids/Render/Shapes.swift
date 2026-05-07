@@ -60,6 +60,31 @@ enum Shapes {
         return node
     }
 
+    // Rock: filled irregular polygon. Visually solid, contrasting with the
+    // hollow asteroids. Like asteroid(), the same `seed` gives the same shape.
+    static func rock(radius: CGFloat, seed: UInt64) -> SKShapeNode {
+        var rng = SeededGenerator(seed: seed)
+        let count = 9
+        let path = CGMutablePath()
+        for i in 0..<count {
+            let baseAngle = CGFloat(i) / CGFloat(count) * .pi * 2
+            let angleJitter = rng.cgFloat(in: -0.10...0.10)
+            let radiusJitter = rng.cgFloat(in: 0.85...1.05)
+            let r = radius * radiusJitter
+            let a = baseAngle + angleJitter
+            let p = CGPoint.fromAngle(a, length: r)
+            if i == 0 { path.move(to: p) } else { path.addLine(to: p) }
+        }
+        path.closeSubpath()
+
+        let node = SKShapeNode(path: path)
+        node.fillColor = SKColor(white: 0.42, alpha: 1)
+        node.strokeColor = SKColor(white: 0.72, alpha: 1)
+        node.lineWidth = 1.5
+        node.isAntialiased = true
+        return node
+    }
+
     // UFO: classic flying-saucer silhouette in line segments.
     static func ufo(scale: CGFloat = 1) -> SKShapeNode {
         let path = CGMutablePath()
@@ -89,15 +114,15 @@ enum Shapes {
     }
 
     // Bullet: short laser line oriented along the heading.
-    static func bullet(color: SKColor = .white, heading: CGFloat = 0) -> SKShapeNode {
-        let half: CGFloat = 3
+    static func bullet(color: SKColor = .white, heading: CGFloat = 0, width: CGFloat = 1.5) -> SKShapeNode {
+        let half: CGFloat = width >= 3 ? 5 : 3
         let path = CGMutablePath()
         path.move(to: CGPoint(x: -cos(heading) * half, y: -sin(heading) * half))
         path.addLine(to: CGPoint(x:  cos(heading) * half, y:  sin(heading) * half))
         let node = SKShapeNode(path: path)
         node.strokeColor = color
         node.fillColor = .clear
-        node.lineWidth = 1.5
+        node.lineWidth = width
         node.lineCap = .round
         node.isAntialiased = true
         return node
@@ -107,6 +132,7 @@ enum Shapes {
         switch kind {
         case .shield:    return shieldPowerUp()
         case .dualCanon: return dualCanonPowerUp()
+        case .boost:     return boostPowerUp()
         }
     }
 
@@ -123,6 +149,24 @@ enum Shapes {
         node.strokeColor = SKColor(red: 0, green: 1, blue: 1, alpha: 1)
         node.fillColor = .clear
         node.lineWidth = 1.5
+        node.isAntialiased = true
+        return node
+    }
+
+    private static func boostPowerUp() -> SKShapeNode {
+        // Orange double chevron pointing right ">>" — evokes speed.
+        let path = CGMutablePath()
+        path.move(to:    CGPoint(x: -10, y:  6))
+        path.addLine(to: CGPoint(x:  -2, y:  0))
+        path.addLine(to: CGPoint(x: -10, y: -6))
+        path.move(to:    CGPoint(x:   0, y:  6))
+        path.addLine(to: CGPoint(x:   8, y:  0))
+        path.addLine(to: CGPoint(x:   0, y: -6))
+        let node = SKShapeNode(path: path)
+        node.strokeColor = SKColor(red: 1.0, green: 0.6, blue: 0.2, alpha: 1)
+        node.fillColor   = .clear
+        node.lineWidth   = 1.5
+        node.lineJoin    = .miter
         node.isAntialiased = true
         return node
     }
