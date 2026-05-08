@@ -38,6 +38,7 @@ final class Ship: Entity {
     private let laserMarker: SKShapeNode
     private let boostMarker: SKShapeNode
     private let minelayerMarker: SKShapeNode
+    private let torpedoMarker: SKShapeNode
 
     /// 0 = no shield, 1 = single ring (one absorb), 2 = double ring (two absorbs).
     /// Losing a shield also drops `laserLevel` by 1, so a hit costs both
@@ -77,6 +78,18 @@ final class Ship: Entity {
         }
     }
     weak var laidMine: Mine?
+
+    /// Torpedo and minelayer share the special-action slot. When the player
+    /// picks one up, the other's armed state is cleared (the laid mine, if
+    /// any, stays in the world independently).
+    var armedTorpedo: Bool = false {
+        didSet {
+            guard armedTorpedo != oldValue else { return }
+            torpedoMarker.alpha = armedTorpedo ? 1 : 0
+        }
+    }
+    weak var torpedoLockTarget: Entity?
+    var torpedoLockSecondsRemaining: TimeInterval = 0
 
     var effectiveMaxSpeed: CGFloat {
         switch boostLevel {
@@ -124,6 +137,24 @@ final class Ship: Entity {
         mineMarker.alpha = 0
         n.addChild(mineMarker)
         self.minelayerMarker = mineMarker
+
+        let torpMarker = Ship.makeTorpedoMarker()
+        torpMarker.alpha = 0
+        n.addChild(torpMarker)
+        self.torpedoMarker = torpMarker
+    }
+
+    /// Brief red flash on the torpedo marker — used when a lock attempt fails.
+    func flashTorpedoMarker() {
+        guard armedTorpedo else { return }
+        torpedoMarker.removeAllActions()
+        torpedoMarker.alpha = 1
+        let red = SKColor(red: 1.0, green: 0.2, blue: 0.2, alpha: 1)
+        let pulse = SKAction.sequence([
+            .colorize(with: red, colorBlendFactor: 1.0, duration: 0.10),
+            .colorize(with: .white, colorBlendFactor: 0.0, duration: 0.20)
+        ])
+        torpedoMarker.run(pulse)
     }
 
     func update(dt: TimeInterval) {
@@ -151,6 +182,16 @@ final class Ship: Entity {
 
         node.zRotation = heading
         reloadRemaining = max(0, reloadRemaining - dt)
+
+        if torpedoLockSecondsRemaining > 0 {
+            torpedoLockSecondsRemaining -= dt
+            if torpedoLockSecondsRemaining <= 0 {
+                torpedoLockSecondsRemaining = 0
+                torpedoLockTarget = nil
+            } else if let t = torpedoLockTarget, !t.alive {
+                torpedoLockTarget = nil   // target died: window stays open for dumb-fire
+            }
+        }
     }
 
     var canFire: Bool { alive && reloadRemaining <= 0 }
@@ -250,6 +291,29 @@ final class Ship: Entity {
         circle.lineWidth   = 1
         circle.isAntialiased = true
         n.addChild(circle)
+        return n
+    }
+
+    private static func makeTorpedoMarker() -> SKShapeNode {
+        // Tiny missile silhouette near the rear of the ship.
+        let red = SKColor(red: 0.95, green: 0.35, blue: 0.20, alpha: 1)
+        let path = CGMutablePath()
+        path.move(to:    CGPoint(x: -4, y:  0))
+        path.addLine(to: CGPoint(x: -7, y:  2))
+        path.addLine(to: CGPoint(x: -12, y:  2))
+        path.addLine(to: CGPoint(x: -12, y: -2))
+        path.addLine(to: CGPoint(x: -7, y: -2))
+        path.closeSubpath()
+        path.move(to:    CGPoint(x: -12, y:  2))
+        path.addLine(to: CGPoint(x: -14, y:  4))
+        path.move(to:    CGPoint(x: -12, y: -2))
+        path.addLine(to: CGPoint(x: -14, y: -4))
+        let n = SKShapeNode(path: path)
+        n.strokeColor = red
+        n.fillColor   = .clear
+        n.lineWidth   = 1
+        n.lineJoin    = .miter
+        n.isAntialiased = true
         return n
     }
 

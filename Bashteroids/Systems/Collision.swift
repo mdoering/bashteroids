@@ -10,6 +10,7 @@ enum Collision {
                         rocks: [Rock],
                         mines: [Mine],
                         snakes: [Snake],
+                        torpedoes: [Torpedo],
                         walls: [Wall],
                         shipsCollideWithEachOther: Bool,
                         contactParent: SKNode? = nil) {
@@ -269,6 +270,112 @@ enum Collision {
             }
         }
 
+        // Torpedo vs everything: a torpedo dies on any contact, dealing
+        // Torpedo.damage to its target. A single bullet hit also kills it.
+        for torpedo in torpedoes where torpedo.alive {
+            for bullet in bullets where bullet.alive {
+                if overlap(torpedo, bullet) {
+                    torpedo.alive = false
+                    bullet.alive = false
+                    break
+                }
+            }
+            if !torpedo.alive { continue }
+            for ast in asteroids where ast.alive {
+                if overlap(torpedo, ast) {
+                    torpedo.alive = false
+                    ast.alive = false
+                    torpedo.owner?.score += Score.asteroid
+                    break
+                }
+            }
+            if !torpedo.alive { continue }
+            for ufo in ufos where ufo.alive {
+                if overlap(torpedo, ufo) {
+                    torpedo.alive = false
+                    ufo.alive = false
+                    torpedo.owner?.score += Score.ufo
+                    break
+                }
+            }
+            if !torpedo.alive { continue }
+            for alien in alienMonsters where alien.alive {
+                if overlap(torpedo, alien) {
+                    torpedo.alive = false
+                    for _ in 0..<Torpedo.damage {
+                        if alien.registerBulletHit() {
+                            alien.alive = false
+                            torpedo.owner?.score += Score.alienMonster
+                            break
+                        }
+                    }
+                    break
+                }
+            }
+            if !torpedo.alive { continue }
+            for snake in snakes where snake.alive {
+                if snake.hitTest(point: torpedo.position, radius: torpedo.radius) {
+                    torpedo.alive = false
+                    for _ in 0..<Torpedo.damage {
+                        if snake.registerBulletHit() {
+                            snake.alive = false
+                            torpedo.owner?.score += Score.snake
+                            break
+                        }
+                    }
+                    break
+                }
+            }
+            if !torpedo.alive { continue }
+            for mine in mines where mine.alive {
+                if overlap(torpedo, mine) {
+                    torpedo.alive = false
+                    mine.alive = false
+                    mine.exploded = true
+                    break
+                }
+            }
+            if !torpedo.alive { continue }
+            for rock in rocks where rock.alive {
+                if overlap(torpedo, rock) {
+                    torpedo.alive = false
+                    break
+                }
+            }
+            if !torpedo.alive { continue }
+            for wall in walls where wall.alive {
+                let outer = wall.radius + torpedo.radius
+                if wall.node.position.distanceSquared(to: torpedo.position) > outer * outer { continue }
+                for _ in 0..<Torpedo.damage {
+                    _ = wall.registerBulletHit(at: torpedo.position)
+                }
+                torpedo.alive = false
+                break
+            }
+            if !torpedo.alive { continue }
+            if shipsCollideWithEachOther {
+                for ship in ships where ship.alive {
+                    if torpedo.owner === ship { continue }
+                    if overlap(torpedo, ship) {
+                        let stillAlive = hitShip(ship, damage: Torpedo.damage)
+                        torpedo.alive = false
+                        if !stillAlive {
+                            torpedo.owner?.score += Score.ship
+                        }
+                        break
+                    }
+                }
+            }
+            if !torpedo.alive { continue }
+            for other in torpedoes where other !== torpedo && other.alive {
+                if overlap(torpedo, other) {
+                    torpedo.alive = false
+                    other.alive = false
+                    break
+                }
+            }
+        }
+
         for ship in ships where ship.alive {
             for pu in powerUps where pu.alive {
                 if overlap(ship, pu) {
@@ -278,10 +385,20 @@ enum Collision {
                     case .twinLaser: ship.laserLevel  = min(ship.laserLevel + 1, Ship.maxLaserLevel)
                     case .boost:     ship.boostLevel  = min(ship.boostLevel + 1, Ship.maxBoostLevel)
                     case .minelayer:
+                        // Mine and torpedo share the special-action slot;
+                        // picking up the mine clears any armed torpedo.
+                        ship.armedTorpedo = false
+                        ship.torpedoLockTarget = nil
+                        ship.torpedoLockSecondsRemaining = 0
                         if !ship.minelayerArmed && ship.laidMine == nil {
                             ship.minelayerArmed = true
                         }
                         // else: already armed or has placed mine — pickup consumed but no-op.
+                    case .torpedo:
+                        // Replaces an armed mine in the special slot. Already-
+                        // laid mines stay in the world independently.
+                        ship.minelayerArmed = false
+                        ship.armedTorpedo = true
                     }
                 }
             }

@@ -11,6 +11,8 @@ final class GameScene: SKScene {
     private var asteroids: [Asteroid] = []
     private var ufos: [UFO] = []
     private var bullets: [Bullet] = []
+    private var torpedoes: [Torpedo] = []
+    private var lockCircles: [ObjectIdentifier: SKShapeNode] = [:]
     private var powerUps: [PowerUp] = []
     private var mines: [Mine] = []
     private var alienMonsters: [AlienMonster] = []
@@ -146,6 +148,7 @@ final class GameScene: SKScene {
         for a in asteroids { a.update(dt: dt) }
         for u in ufos     { u.update(dt: dt) }
         for b in bullets  { b.update(dt: dt) }
+        for t in torpedoes { t.update(dt: dt) }
         for pu in powerUps { pu.update(dt: dt) }
         for m in mines { m.update(dt: dt) }
         for a in alienMonsters { a.update(dt: dt) }
@@ -168,6 +171,7 @@ final class GameScene: SKScene {
         Movement.stepWrapping(asteroids, dt: dt, bounds: bounds)
         Movement.stepWrapping(ufos,     dt: dt, bounds: bounds)
         Movement.stepBounded(bullets,  dt: dt, bounds: bounds)
+        Movement.stepBounded(torpedoes, dt: dt, bounds: bounds)
         Movement.stepBounded(powerUps, dt: dt, bounds: bounds)
         Movement.stepBounded(rocks, dt: dt, bounds: bounds.insetBy(dx: -60, dy: -60))
 
@@ -182,6 +186,7 @@ final class GameScene: SKScene {
                           bullets: bullets, powerUps: powerUps,
                           rocks: rocks, mines: mines,
                           snakes: snakes,
+                          torpedoes: torpedoes,
                           walls: walls,
                           shipsCollideWithEachOther: pvpEnabled,
                           contactParent: self)
@@ -199,6 +204,7 @@ final class GameScene: SKScene {
         }
 
         reapDead()
+        updateLockCircles()
         updateHUD()
         checkEndCondition()
         checkLevelComplete()
@@ -352,6 +358,12 @@ final class GameScene: SKScene {
     }
 
     private func handleMinelayerAction(ship: Ship) {
+        // Torpedo workflow takes priority while one is armed (or while its
+        // lock window is still open from a prior press).
+        if ship.armedTorpedo {
+            handleTorpedoAction(ship: ship)
+            return
+        }
         if ship.minelayerArmed && ship.laidMine == nil {
             // Place: drop a mine at the ship's current position with a 60 s timer.
             let mine = Mine(position: ship.position, lifetimeOverride: 60)
@@ -365,6 +377,90 @@ final class GameScene: SKScene {
             live.exploded = true
         }
         // else: no armed mine, no live placed mine — no-op.
+    }
+
+    private func handleTorpedoAction(ship: Ship) {
+        if ship.torpedoLockSecondsRemaining > 0 {
+            // Second press within the lock window: launch.
+            launchTorpedo(from: ship, target: ship.torpedoLockTarget)
+            ship.armedTorpedo = false
+            ship.torpedoLockTarget = nil
+            ship.torpedoLockSecondsRemaining = 0
+            removeLockCircle(forShip: ship)
+            return
+        }
+        // First press: scan for a target inside the forward cone.
+        let target = scanForLockTarget(from: ship)
+        ship.torpedoLockTarget = target
+        ship.torpedoLockSecondsRemaining = Torpedo.lockWindow
+        if target == nil {
+            ship.flashTorpedoMarker()
+            audio.playDenial()
+        }
+    }
+
+    private func scanForLockTarget(from ship: Ship) -> Entity? {
+        let pos = ship.position
+        let heading = ship.heading
+        var best: Entity?
+        var bestD2: CGFloat = .infinity
+
+        func consider(_ e: Entity) {
+            guard e.alive else { return }
+            let dx = e.position.x - pos.x
+            let dy = e.position.y - pos.y
+            let d2 = dx * dx + dy * dy
+            if d2 > Torpedo.scanRange * Torpedo.scanRange { return }
+            var diff = atan2(dy, dx) - heading
+            while diff >  .pi { diff -= 2 * .pi }
+            while diff < -.pi { diff += 2 * .pi }
+            if abs(diff) > Torpedo.scanHalfAngle { return }
+            if d2 < bestD2 { bestD2 = d2; best = e }
+        }
+        asteroids.forEach(consider)
+        ufos.forEach(consider)
+        alienMonsters.forEach(consider)
+        snakes.forEach(consider)
+        mines.forEach(consider)
+        rocks.forEach(consider)
+        if mode == .battle {
+            for other in ships where other !== ship { consider(other) }
+        }
+        return best
+    }
+
+    private func launchTorpedo(from ship: Ship, target: Entity?) {
+        let nosePos = ship.position + CGPoint.fromAngle(ship.heading, length: Ship.noseOffset)
+        let torpedo = Torpedo(owner: ship, position: nosePos, heading: ship.heading, target: target)
+        torpedoes.append(torpedo)
+        addChild(torpedo.node)
+    }
+
+    private func removeLockCircle(forShip ship: Ship) {
+        let id = ObjectIdentifier(ship)
+        lockCircles[id]?.removeFromParent()
+        lockCircles.removeValue(forKey: id)
+    }
+
+    private func updateLockCircles() {
+        for ship in ships {
+            let id = ObjectIdentifier(ship)
+            if let target = ship.torpedoLockTarget,
+               ship.torpedoLockSecondsRemaining > 0,
+               target.alive {
+                let circle: SKShapeNode
+                if let existing = lockCircles[id] {
+                    circle = existing
+                } else {
+                    circle = Shapes.lockCircle(radius: target.radius + 4)
+                    addChild(circle)
+                    lockCircles[id] = circle
+                }
+                circle.position = target.position
+            } else {
+                removeLockCircle(forShip: ship)
+            }
+        }
     }
 
     private func nearestShip(to point: CGPoint) -> Ship? {
@@ -497,6 +593,10 @@ final class GameScene: SKScene {
             if !dead.alive { dead.node.removeFromParent(); return true }
             return false
         }
+        torpedoes.removeAll { dead in
+            if !dead.alive { dead.node.removeFromParent(); return true }
+            return false
+        }
         powerUps.removeAll { dead in
             if !dead.alive { dead.node.removeFromParent(); return true }
             return false
@@ -548,9 +648,10 @@ final class GameScene: SKScene {
         flashStarted = false
 
         // Wipe lingering hazards so the transition is a clean slate.
-        for b in bullets { b.alive = false }
-        for m in mines   { m.alive = false }   // mine.exploded stays false → no blast
-        for r in rocks   { r.alive = false }
+        for b in bullets   { b.alive = false }
+        for t in torpedoes { t.alive = false }
+        for m in mines     { m.alive = false }   // mine.exploded stays false → no blast
+        for r in rocks     { r.alive = false }
     }
 
     private func handleLevelTransition(dt: TimeInterval) {

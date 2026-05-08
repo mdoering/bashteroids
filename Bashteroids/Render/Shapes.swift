@@ -150,6 +150,7 @@ enum Shapes {
         case .twinLaser: return twinLaserPowerUp()
         case .boost:     return boostPowerUp()
         case .minelayer: return minelayerPowerUp()
+        case .torpedo:   return torpedoPowerUp()
         }
     }
 
@@ -198,6 +199,79 @@ enum Shapes {
         node.lineWidth = 1.5
         node.isAntialiased = true
         return node
+    }
+
+    private static func torpedoPowerUp() -> SKShapeNode {
+        // Small missile silhouette pointing right: pointed nose, body, two
+        // tail fins. Red-orange to read as "warhead", distinct from the
+        // magenta minelayer.
+        let red = SKColor(red: 0.95, green: 0.35, blue: 0.20, alpha: 1)
+        let body = CGMutablePath()
+        body.move(to:    CGPoint(x:  10, y:  0))     // nose
+        body.addLine(to: CGPoint(x:   4, y:  4))
+        body.addLine(to: CGPoint(x: -10, y:  4))
+        body.addLine(to: CGPoint(x: -10, y: -4))
+        body.addLine(to: CGPoint(x:   4, y: -4))
+        body.closeSubpath()
+        // Tail fins (stick out beyond the body)
+        body.move(to:    CGPoint(x: -10, y:  4))
+        body.addLine(to: CGPoint(x: -13, y:  7))
+        body.move(to:    CGPoint(x: -10, y: -4))
+        body.addLine(to: CGPoint(x: -13, y: -7))
+
+        let n = SKShapeNode(path: body)
+        n.strokeColor = red
+        n.fillColor   = .clear
+        n.lineWidth   = 1.5
+        n.lineJoin    = .miter
+        n.isAntialiased = true
+        return n
+    }
+
+    static func torpedo() -> SKShapeNode {
+        // Smaller version of the powerup silhouette for the projectile, white.
+        let path = CGMutablePath()
+        path.move(to:    CGPoint(x:  7, y:  0))
+        path.addLine(to: CGPoint(x:  3, y:  2.5))
+        path.addLine(to: CGPoint(x: -6, y:  2.5))
+        path.addLine(to: CGPoint(x: -6, y: -2.5))
+        path.addLine(to: CGPoint(x:  3, y: -2.5))
+        path.closeSubpath()
+        path.move(to:    CGPoint(x: -6, y:  2.5))
+        path.addLine(to: CGPoint(x: -8, y:  4.5))
+        path.move(to:    CGPoint(x: -6, y: -2.5))
+        path.addLine(to: CGPoint(x: -8, y: -4.5))
+
+        let n = SKShapeNode(path: path)
+        n.strokeColor = .white
+        n.fillColor   = .clear
+        n.lineWidth   = 1.5
+        n.lineJoin    = .miter
+        n.isAntialiased = true
+
+        // Short orange flame trailing behind.
+        let flame = CGMutablePath()
+        flame.move(to:    CGPoint(x: -6, y:  1.5))
+        flame.addLine(to: CGPoint(x: -11, y:  0))
+        flame.addLine(to: CGPoint(x: -6, y: -1.5))
+        let flameNode = SKShapeNode(path: flame)
+        flameNode.strokeColor = SKColor(red: 1.0, green: 0.6, blue: 0.2, alpha: 1)
+        flameNode.fillColor   = .clear
+        flameNode.lineWidth   = 1.2
+        flameNode.lineJoin    = .round
+        flameNode.isAntialiased = true
+        n.addChild(flameNode)
+        return n
+    }
+
+    /// Thin red ring overlaid on a torpedo's locked target.
+    static func lockCircle(radius: CGFloat) -> SKShapeNode {
+        let n = SKShapeNode(circleOfRadius: radius)
+        n.strokeColor = SKColor(red: 1.0, green: 0.2, blue: 0.2, alpha: 0.85)
+        n.fillColor   = .clear
+        n.lineWidth   = 1.2
+        n.isAntialiased = true
+        return n
     }
 
     private static func minelayerPowerUp() -> SKShapeNode {

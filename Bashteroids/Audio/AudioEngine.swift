@@ -9,6 +9,7 @@ final class AudioEngine {
 
     private let shootBuffer: AVAudioPCMBuffer
     private let explosionBuffer: AVAudioPCMBuffer
+    private let denialBuffer: AVAudioPCMBuffer
     private let thrustLoopBuffer: AVAudioPCMBuffer
 
     private var oneshotPool: [AVAudioPlayerNode] = []
@@ -20,6 +21,7 @@ final class AudioEngine {
         format = Synth.standardFormat()
         shootBuffer = Synth.makeShoot(format: format)
         explosionBuffer = Synth.makeExplosion(format: format)
+        denialBuffer = Synth.makeDenial(format: format)
         thrustLoopBuffer = Synth.makeThrustLoop(format: format)
 
         configureSession()
@@ -35,6 +37,10 @@ final class AudioEngine {
 
     func playExplosion() {
         playOneshot(explosionBuffer, gain: 0.95)
+    }
+
+    func playDenial() {
+        playOneshot(denialBuffer, gain: 0.6)
     }
 
     func setThrust(playerIndex: Int, on: Bool) {

@@ -76,6 +76,36 @@ enum Synth {
         return buf
     }
 
+    // Two short low-pitched "uh-uh" blips — the failed-lock denial cue.
+    static func makeDenial(format: AVAudioFormat) -> AVAudioPCMBuffer {
+        let blip = 0.07
+        let gap  = 0.05
+        let duration = blip * 2 + gap
+        let buf = makeBuffer(format: format, duration: duration)
+        let ch = buf.floatChannelData![0]
+        let frames = Int(buf.frameLength)
+
+        let f0 = 240.0
+        let attack = 0.005
+        var phase = 0.0
+        for i in 0..<frames {
+            let t = Double(i) / sampleRate
+            phase += 2 * .pi * f0 / sampleRate
+            let raw: Float = sin(phase) > 0 ? 0.32 : -0.32
+
+            let inFirst  = t < blip
+            let inSecond = t >= blip + gap && t < blip + gap + blip
+            guard inFirst || inSecond else { ch[i] = 0; continue }
+
+            let local = inFirst ? t : t - (blip + gap)
+            let env: Float = local < attack
+                ? Float(local / attack)
+                : max(0, Float(1 - (local - attack) / (blip - attack)))
+            ch[i] = raw * env
+        }
+        return buf
+    }
+
     // Loopable thrust: ~80 Hz sawtooth + low-pass filtered noise. Loop
     // length is an integer number of saw cycles so the boundary is silent.
     static func makeThrustLoop(format: AVAudioFormat) -> AVAudioPCMBuffer {

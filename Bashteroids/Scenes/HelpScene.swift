@@ -11,7 +11,7 @@ final class HelpScene: SKScene {
     private let valueColor  = SKColor(white: 0.65, alpha: 1)
 
     private enum Glyph {
-        case shield, twinLaser, boost, minelayer
+        case shield, twinLaser, boost, minelayer, torpedo
         case asteroid, ufo, alien, snake, mine, rock, wallStrong, wallWeak
     }
 
@@ -101,7 +101,8 @@ final class HelpScene: SKScene {
             (.shield,    "Shield",     "Absorbs 1 hit. Stacks 2x."),
             (.twinLaser, "Twin Laser", "Faster fire, stacks to quad."),
             (.boost,     "Boost",      "+50% / +100% max speed."),
-            (.minelayer, "Minelayer",  "Place mine, re-press to blow.")
+            (.minelayer, "Minelayer",  "Place mine, re-press to blow."),
+            (.torpedo,   "Torpedo",    "Lock & launch homing missile.")
         ]
         for (glyph, label, value) in rows {
             addLeftRow(label: label, value: value, labelX: labelX, valueX: valueX, y: y)
@@ -199,6 +200,8 @@ final class HelpScene: SKScene {
             return Shapes.powerUp(kind: .boost)
         case .minelayer:
             return Shapes.powerUp(kind: .minelayer)
+        case .torpedo:
+            return Shapes.powerUp(kind: .torpedo)
         case .asteroid:
             return Shapes.asteroid(radius: 11, seed: 1)
         case .ufo:

@@ -170,7 +170,7 @@ final class Spawner {
             glowColor = SKColor(red: 0.55, green: 0.85, blue: 0.30, alpha: 1)
 
         case .powerUp:
-            let kinds: [PowerUpKind] = [.shield, .twinLaser, .boost, .minelayer]
+            let kinds: [PowerUpKind] = [.shield, .twinLaser, .boost, .minelayer, .torpedo]
             let kind = kinds.randomElement(using: &rng) ?? .shield
             pendingKind = .powerUp(kind: kind)
             glowColor = .white
@@ -303,6 +303,7 @@ final class Spawner {
             (.twinLaser, 1),
             (.boost, 1),
             (.minelayer, 1),
+            (.torpedo, 1),
         ]
         let totalWeight: CGFloat = kinds.reduce(0) { $0 + CGFloat($1.1) }
         var pick = rng.cgFloat(in: 0...totalWeight)
