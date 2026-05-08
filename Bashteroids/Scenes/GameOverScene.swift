@@ -43,6 +43,11 @@ final class GameOverScene: SKScene {
     override func didMove(to view: SKView) {
         backgroundColor = .black
 
+        // Defensive: GameScene.willMove already stops thrust audio, but if
+        // any thrust loop survived the transition we silence it again here
+        // so the game-over screen is silent.
+        AudioEngine.shared.stopAllThrust()
+
         switch result {
         case .survivalEnd(let lastName, let lastColor, let totalScore, let playerCount):
             renderBanner(text: "GAME OVER", color: .white)

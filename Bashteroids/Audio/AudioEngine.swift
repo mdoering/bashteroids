@@ -52,13 +52,22 @@ final class AudioEngine {
                 node.play()
             }
             node.volume = 0.35
-        } else if node.isPlaying {
+        } else {
+            // Belt-and-suspenders: zero the volume AND stop, even if
+            // isPlaying claims the node is idle. AVAudioPlayerNode.isPlaying
+            // can lag behind real audio-thread state, and missing this
+            // window leaves a sustained "siren" loop running into the
+            // game-over scene.
+            node.volume = 0
             node.stop()
         }
     }
 
     func stopAllThrust() {
-        for node in thrustPool where node.isPlaying { node.stop() }
+        for node in thrustPool {
+            node.volume = 0
+            node.stop()
+        }
     }
 
     // MARK: - Setup
