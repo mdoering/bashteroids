@@ -18,6 +18,8 @@ final class HelpScene: SKScene {
     override func didMove(to view: SKView) {
         backgroundColor = .black
 
+        MusicPlayer.shared.play(resource: "help", ext: "mp3")
+
         let bgTexture = SKTexture(imageNamed: "HelpBackground")
         let bgImgSize = bgTexture.size()
         let bgScale = max(size.width / bgImgSize.width, size.height / bgImgSize.height)

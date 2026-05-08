@@ -45,6 +45,7 @@ final class TitleScene: SKScene {
         backgroundColor = .black
 
         TouchOverlayState.shared.setScene(.title)
+        MusicPlayer.shared.play(resource: "rivers", ext: "m4a", volume: 0.6)
         titleTapObserver = NotificationCenter.default.addObserver(
             forName: .titleSceneTap, object: nil, queue: .main
         ) { [weak self] note in
@@ -317,6 +318,7 @@ final class TitleScene: SKScene {
             titleLongPressObserver = nil
         }
         TouchOverlayState.shared.setScene(.other)
+        MusicPlayer.shared.stop()
     }
 
     /// Hit-test the slot tile rects against a SwiftUI-forwarded tap location

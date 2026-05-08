@@ -12,7 +12,7 @@ These were settled during planning. Don't relitigate without asking.
 
 - **Stack:** SpriteKit + Swift, single Xcode target, iOS 17+ / tvOS 17+ deployment, iPad with all four orientations declared (Apple is deprecating `UIRequiresFullScreen` and orientation-locking; gameplay is designed around landscape but the app no longer refuses portrait), Mac Catalyst enabled, tvOS enabled. No Android, no cross-platform engine.
 - **Multiplayer:** Local couch co-op only, 1–4 players, each with their own Bluetooth controller. **No networking.**
-- **Assets:** Fully procedural. Graphics are `SKShapeNode` line primitives via `CGPath`. Audio is synthesized with `AVAudioEngine` (oscillators + noise + ADSR). Do **not** add `.png`, `.wav`, `.caf`, etc. — there are no asset files.
+- **Assets:** Mostly procedural. Graphics are `SKShapeNode` line primitives via `CGPath` (the title/help backdrops and tvOS app icon are PNGs in `Assets.xcassets`). All gameplay sound effects are synthesized with `AVAudioEngine` (oscillators + noise + ADSR) — do **not** add `.wav`/`.caf` SFX files. Background music *is* allowed as bundled `.m4a`/`.mp3` files in `Bashteroids/Audio/Resources/` and is played by `MusicPlayer` (separate from the synth `AudioEngine`).
 - **Physics:** Custom integration in the `update(_:)` loop. Do **not** use `SKPhysicsBody` / SpriteKit's physics engine — screen-wrapping inertia and the precise collision rules are simpler with hand-rolled circle-vs-circle.
 
 ## Project structure conventions
@@ -84,6 +84,6 @@ The full step-by-step plan is at `~/.claude/plans/plan-to-build-a-eventual-ancho
 
 - **Don't** add a Podfile, Package.swift, Carthage config, or any third-party dependency manager. SpriteKit + AVFoundation + GameController cover everything.
 - **Don't** restructure the project into multiple Swift packages or add a separate macOS AppKit target. One target, three destinations (iOS, Mac Catalyst, tvOS).
-- **Don't** use `SKAction.playSoundFileNamed` — there are no sound files. Audio goes through the synth in `Audio/`.
+- **Don't** use `SKAction.playSoundFileNamed` for sound effects — those go through the synth in `Audio/`. Background music for menu scenes is the exception: it loads bundled files via `MusicPlayer.shared.play(resource:ext:)`.
 - **Don't** introduce a HUD beyond what `specs.md` requires (no score display, no menus beyond Title/GameOver).
 - **Don't** poll `microGamepad.buttonMenu` to start the game on tvOS — it's system-reserved (returns to home). Use `buttonX` (play/pause on second-gen+ Siri Remote).
