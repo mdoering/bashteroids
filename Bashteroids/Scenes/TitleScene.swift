@@ -23,7 +23,7 @@ final class TitleScene: SKScene {
     private var selectedDensity: PowerUpDensity = GameSettings.lastPowerUpDensity
 
     private enum FocusItem: CaseIterable { case mode, level, density, help }
-    private var focused: FocusItem = .level
+    private var focused: FocusItem = .mode
 
     private var modeLabel: SKLabelNode!
     private var levelLabel: SKLabelNode!
