@@ -375,13 +375,67 @@ final class TitleScene: SKScene {
         // stops music outright).
     }
 
-    /// Hit-test the slot tile rects against a SwiftUI-forwarded tap location
-    /// (already in scene coords). On a hit on an empty tile, claim it for
-    /// the touch player.
+    /// Hit-test the title-scene's interactive elements against a SwiftUI-
+    /// forwarded tap location (already in scene coords).
+    ///
+    /// Priority:
+    ///   1. Empty slot tile → claim for the touch player.
+    ///   2. Help label → openHelp().
+    ///   3. Join hint at the bottom → tryStart() (acts as a touchable
+    ///      "PRESS A TO JOIN · START / SPACE TO BEGIN" link).
+    ///   4. Selector left arrow / right arrow → focus that selector and
+    ///      cycle in that direction.
+    ///   5. Selector value or caption → focus that selector (no cycle).
     private func handleTouchTap(at point: CGPoint) {
-        guard !manager.hasTouchPlayer else { return }
-        if let i = slotTileIndex(at: point), manager.emptySlotIndices().contains(i) {
+        if !manager.hasTouchPlayer,
+           let i = slotTileIndex(at: point),
+           manager.emptySlotIndices().contains(i) {
             manager.claimTouch(atSlot: i)
+            return
+        }
+
+        let hitPad: CGFloat = 12
+
+        if helpLabel.frame.insetBy(dx: -hitPad, dy: -hitPad).contains(point) {
+            openHelp()
+            return
+        }
+
+        if joinHintLabel.frame.insetBy(dx: -hitPad, dy: -hitPad).contains(point) {
+            tryStart()
+            return
+        }
+
+        let selectors: [(FocusItem, SKLabelNode, SKLabelNode, SKLabelNode, SKLabelNode?)] = [
+            (.mode,    modeLeftArrow,    modeRightArrow,    modeLabel,    nil),
+            (.level,   levelLeftArrow,   levelRightArrow,   levelLabel,   nil),
+            (.density, densityLeftArrow, densityRightArrow, densityLabel, densityCaption),
+            (.audio,   audioLeftArrow,   audioRightArrow,   audioLabel,   audioCaption),
+        ]
+        for (item, leftArrow, rightArrow, value, caption) in selectors {
+            if leftArrow.frame.insetBy(dx: -hitPad, dy: -hitPad).contains(point) {
+                focused = item
+                cycleFocusedHorizontal(by: -1)
+                renderSelectors()
+                return
+            }
+            if rightArrow.frame.insetBy(dx: -hitPad, dy: -hitPad).contains(point) {
+                focused = item
+                cycleFocusedHorizontal(by:  1)
+                renderSelectors()
+                return
+            }
+            var valueRect = value.frame.insetBy(dx: -hitPad, dy: -hitPad)
+            if let cap = caption {
+                valueRect = valueRect.union(cap.frame.insetBy(dx: -hitPad, dy: -hitPad))
+            }
+            if valueRect.contains(point) {
+                if focused != item {
+                    focused = item
+                    renderSelectors()
+                }
+                return
+            }
         }
     }
 

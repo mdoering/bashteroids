@@ -29,7 +29,7 @@ struct NameEntryOverlay: View {
     #endif
 
     var body: some View {
-        ZStack {
+        ZStack(alignment: .top) {
             Color.black.opacity(0.85).ignoresSafeArea()
 
             VStack(spacing: stackSpacing) {
@@ -72,6 +72,7 @@ struct NameEntryOverlay: View {
                 .font(.system(size: buttonFont, weight: .semibold))
             }
             .padding(outerPadding)
+            .frame(maxWidth: .infinity, alignment: .top)
         }
         .onAppear {
             name = coordinator.request?.current ?? ""
