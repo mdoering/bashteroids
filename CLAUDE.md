@@ -138,6 +138,27 @@ The title scene uses a single shared focus, navigable from any input device. **D
 - Horizontal swipe (≥30 pt) over a selector tile: cycles its value, regardless of focus / edit mode.
 - The four overlay tap-catchers in `GameContainerView` are gated by `TouchOverlayState.shared` and only mount on iOS / Catalyst.
 
+**Name entry — in-game character cycler (no native keyboards):**
+
+There is no SwiftUI overlay and no system on-screen keyboard. All platforms use a single in-tile cycler, plus hardware-keyboard typing as an additive shortcut wherever `GCKeyboard.coalesced != nil`.
+
+- Alphabet: `A B C ... Z . - SPACE ⌫` (30 entries; backspace `⌫` at the end so reverse-cycling from `A` lands on it first).
+- Buffer cap: 8 chars. At-cap commit of a regular char is silently a no-op.
+- Editor opens via focus + A on own slot (controller / keyboard), or long-press own touch slot. Joining a slot does **not** auto-open the editor — slot keeps the stored name.
+- State: `nameBuffer`, `cyclerCursor` (0..buffer.count), `cyclerCharIndex` (0..29). Cursor moves reset live char to `A`.
+
+| Action | Controller / Siri Remote | Keyboard | Touch (own slot only) |
+|---|---|---|---|
+| Move cursor | D-pad ← / → | ← / → | Tap ◀ / ▶ |
+| Cycle live char | D-pad ↑ / ↓ | ↑ / ↓ | Tap ↑ / ↓ |
+| Commit live char (insert / backspace if `⌫`) | A | A direct-types the key (cycler bypassed) | Tap ⏎ |
+| Confirm name | X / Menu / Y / Play-Pause | Enter | Tap ✓ |
+| Cancel (revert) | — (Menu reserved on Siri Remote) | Esc | — |
+| Direct character (kbd) | — | Letter / `.` / `-` / Space inserts at cursor | — |
+| Direct backspace (kbd) | — | Backspace deletes char before cursor | — |
+
+Don't restore the SwiftUI overlay or `NameEntryCoordinator` without asking — they were deleted intentionally to unify the cross-platform UX.
+
 **Game-over input model:**
 - During the score-reveal phase (non-NORMAL survival): any controller button or any key plays the reveal animation, advancing the state.
 - After reveal: **A** (controller) / **R** (keyboard) replays. *Every other* controller button (X, Menu) and *every other* key returns to the title. Touch: tap-on-hint replays; tap-outside returns to title.

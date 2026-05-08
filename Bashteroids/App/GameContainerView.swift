@@ -2,7 +2,6 @@ import SwiftUI
 import SpriteKit
 
 struct GameContainerView: View {
-    @StateObject private var nameEntry = NameEntryCoordinator.shared
     @ObservedObject private var touchOverlay = TouchOverlayState.shared
 
     var body: some View {
@@ -32,12 +31,6 @@ struct GameContainerView: View {
             if touchOverlay.inGameHUDVisible {
                 TouchHUDView()
                     .ignoresSafeArea()
-            }
-            #endif
-
-            #if os(tvOS) || os(iOS)
-            if nameEntry.request != nil {
-                NameEntryOverlay(coordinator: nameEntry)
             }
             #endif
         }
