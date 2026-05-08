@@ -57,6 +57,13 @@ final class HelpScene: SKScene {
         renderPowerupsSection(  labelX: leftLabelX,  valueX: leftValueX,  iconX: leftIconX,  topY: bottomRowY)
         renderEnemiesSection(   labelX: rightLabelX, valueX: rightValueX, iconX: rightIconX, topY: bottomRowY)
 
+        let credits = SKLabelNode(text: "Designed by Markus Döring, with creative inspiration from Toni Möglich.")
+        credits.fontName = "AvenirNext-Regular"
+        credits.fontSize = 12
+        credits.fontColor = SKColor(white: 0.45, alpha: 1)
+        credits.position = CGPoint(x: size.width / 2, y: size.height * 0.04)
+        addChild(credits)
+
         KeyboardManager.shared.onKeyDown = { [weak self] code in
             self?.handleKeyDown(code)
         }
