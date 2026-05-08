@@ -931,7 +931,8 @@ final class TitleScene: SKScene {
         let totalWidth = CGFloat(count) * tileWidth + CGFloat(count - 1) * spacing
         let startX = (size.width - totalWidth) / 2 + tileWidth / 2
         let y = size.height * 0.46
-        let slotByIndex = Dictionary(uniqueKeysWithValues: manager.slots.map { ($0.index, $0) })
+        let slotByIndex = Dictionary(manager.slots.map { ($0.index, $0) },
+                                     uniquingKeysWith: { _, latest in latest })
 
         for i in 0..<count {
             let x = startX + CGFloat(i) * (tileWidth + spacing)

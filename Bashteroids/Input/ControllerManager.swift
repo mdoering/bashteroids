@@ -252,10 +252,10 @@ final class ControllerManager {
     /// for it sits still and ignores all input — useful as a target.
     @discardableResult
     func claimDummy() -> PlayerSlot? {
-        guard slots.count < Self.maxPlayers else { return nil }
-        let index = slots.count
+        guard let index = emptySlotIndices().first else { return nil }
         let slot = PlayerSlot(dummyIndex: index, color: Self.playerColors[index])
         slots.append(slot)
+        slots.sort { $0.index < $1.index }
         TouchOverlayState.shared.recompute()
         onSlotsChanged?()
         return slot
