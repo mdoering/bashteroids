@@ -34,7 +34,19 @@ struct GameContainerView: View {
             }
             #endif
         }
-        .onAppear { MacFullScreen.enterIfNeeded() }
+        .onAppear {
+            MacFullScreen.enterIfNeeded()
+            // Pre-warm the audio singletons so CoreAudio's render thread
+            // has fully ramped before the first user input. Without this,
+            // a Mac Catalyst main-thread spike on the very first focus
+            // move can push the music's HAL output past its buffer
+            // deadline (audible click + an `IOWorkLoop: skipping cycle
+            // due to overload` log). Touching the singletons here forces
+            // their inits to run during launch, when the main thread is
+            // already busy and no audio is yet playing.
+            _ = AudioEngine.shared
+            _ = MusicPlayer.shared
+        }
     }
 
     private func makeScene(size: CGSize) -> SKScene {
