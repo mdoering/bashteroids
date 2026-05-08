@@ -18,12 +18,13 @@ final class TitleScene: SKScene {
     private var nameSuggestionIndex: Int = -1
     private var prevClaimedIndices: Set<Int> = []
     private var slotAWasPressed: [Int: Bool] = [:]
+    private var lastSlotTapTime: [Int: TimeInterval] = [:]
     private var selectedLevel: Int = GameSettings.lastPlayedLevel
     private var selectedMode: GameMode = GameSettings.lastMode
     private var selectedDensity: PowerUpDensity = GameSettings.sessionPowerUpDensity
     private var selectedAudio: AudioMode = GameSettings.audioMode
 
-    private enum FocusItem: CaseIterable { case mode, level, density, audio, help }
+    private enum FocusItem: CaseIterable { case mode, level, density, audio, help, start }
     private var focused: FocusItem = .mode
 
     private var modeLabel: SKLabelNode!
@@ -79,7 +80,9 @@ final class TitleScene: SKScene {
         poster.zPosition = -1
         addChild(poster)
 
-        let hint = SKLabelNode(text: "PRESS A TO JOIN  ·  START / SPACE TO BEGIN")
+        let hasHardwareKeyboard = GCKeyboard.coalesced != nil
+        let beginText = hasHardwareKeyboard ? "[SPACE] BEGIN GAME" : "BEGIN GAME"
+        let hint = SKLabelNode(text: beginText)
         hint.fontName = "AvenirNext-Regular"
         hint.fontSize = 18
         hint.fontColor = SKColor(white: 0.55, alpha: 1)
@@ -392,6 +395,25 @@ final class TitleScene: SKScene {
             return
         }
 
+        // Double-tap on a claimed touch slot opens the name editor — same
+        // result as long-press. Window: 0.5 s between successive taps on the
+        // same slot.
+        if activeNameSlot == nil,
+           let i = slotTileIndex(at: point),
+           let slot = manager.slots.first(where: { $0.index == i }),
+           slot.touchInput != nil {
+            let now = CACurrentMediaTime()
+            if let last = lastSlotTapTime[i], now - last < 0.5 {
+                lastSlotTapTime[i] = nil
+                let current = UserDefaults.standard.string(
+                    forKey: "player_name_\(i)") ?? "P\(i + 1)"
+                beginCoordinatorNameEntry(slot: i, current: current)
+                return
+            }
+            lastSlotTapTime[i] = now
+            return
+        }
+
         let hitPad: CGFloat = 12
 
         if helpLabel.frame.insetBy(dx: -hitPad, dy: -hitPad).contains(point) {
@@ -471,7 +493,7 @@ final class TitleScene: SKScene {
     private func tryStart() {
         guard !transitioning, activeNameSlot == nil else { return }
         if manager.slots.isEmpty {
-            flashJoinHint()
+            flashJoinSlots()
             return
         }
         if selectedMode == .battle && manager.slots.count < 2 {
@@ -801,6 +823,7 @@ final class TitleScene: SKScene {
             tile.strokeColor = color
             tile.fillColor = .black
             tile.lineWidth = 3
+            if !claimed { tile.name = "joinTile" }
             slotsLayer.addChild(tile)
 
             if claimed {
@@ -809,11 +832,12 @@ final class TitleScene: SKScene {
                 ship.zRotation = .pi / 2
                 slotsLayer.addChild(ship)
             } else {
-                let label = SKLabelNode(text: "P\(i + 1)")
-                label.fontName = "AvenirNext-Regular"
+                let label = SKLabelNode(text: "JOIN")
+                label.fontName = "AvenirNext-Bold"
                 label.fontSize = 16
-                label.fontColor = color
+                label.fontColor = ControllerManager.playerColors[i]
                 label.position = CGPoint(x: x, y: y - 6)
+                label.name = "joinLabel"
                 slotsLayer.addChild(label)
             }
 
@@ -909,6 +933,10 @@ final class TitleScene: SKScene {
 
         helpLabel.fontColor = focused == .help ? active : inactive
 
+        joinHintLabel.fontColor = focused == .start
+            ? active
+            : SKColor(white: 0.55, alpha: 1)
+
         modeLeftArrow.fontColor     = focused == .mode    ? active : inactive
         modeRightArrow.fontColor    = focused == .mode    ? active : inactive
         levelLeftArrow.fontColor    = focused == .level   ? active : inactive
@@ -927,12 +955,10 @@ final class TitleScene: SKScene {
         renderSelectors()
     }
 
-    private func flashJoinHint() {
-        joinHintLabel.removeAllActions()
-        joinHintLabel.alpha = 1
-        let pulse = SKAction.sequence([
+    private func flashJoinSlots() {
+        let labelPulse = SKAction.sequence([
             .group([
-                .scale(to: 1.08, duration: 0.14),
+                .scale(to: 1.25, duration: 0.14),
                 .colorize(with: .white, colorBlendFactor: 1.0, duration: 0.14)
             ]),
             .group([
@@ -940,7 +966,24 @@ final class TitleScene: SKScene {
                 .colorize(withColorBlendFactor: 0.0, duration: 0.32)
             ])
         ])
-        joinHintLabel.run(pulse)
+        let tilePulse = SKAction.sequence([
+            .scale(to: 1.06, duration: 0.14),
+            .scale(to: 1.0,  duration: 0.32)
+        ])
+        for node in slotsLayer.children {
+            switch node.name {
+            case "joinLabel":
+                node.removeAllActions()
+                node.setScale(1.0)
+                node.run(labelPulse)
+            case "joinTile":
+                node.removeAllActions()
+                node.setScale(1.0)
+                node.run(tilePulse)
+            default:
+                break
+            }
+        }
     }
 
     private func flashBattleHint() {
@@ -977,6 +1020,7 @@ final class TitleScene: SKScene {
         case .level:   cycleLevel(by: delta)
         case .density: cycleDensity(by: delta)
         case .audio:   cycleAudio(by: delta)
+        case .start:   break
         case .help:    break
         }
     }
@@ -997,6 +1041,7 @@ final class TitleScene: SKScene {
         case .level:   cycleLevel(by: 1)
         case .density: cycleDensity(by: 1)
         case .audio:   cycleAudio(by: 1)
+        case .start:   tryStart()
         case .help:    openHelp()
         }
     }

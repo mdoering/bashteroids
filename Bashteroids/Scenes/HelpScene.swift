@@ -58,12 +58,21 @@ final class HelpScene: SKScene {
         // Top row: input controls. Bottom row: reference cards with icons.
         // 2-row vertical gap between the two rows.
         let topRowY = size.height * 0.78
-        let bottomRowY = topRowY - (30 + 7 * 22) - (2 * 22)
+        let bottomRowY = topRowY - (30 + 8 * 22) - (2 * 22)
 
         renderControllerSection(labelX: leftLabelX,  valueX: leftValueX,  topY: topRowY)
         renderKeyboardSection(  labelX: rightLabelX, valueX: rightValueX, topY: topRowY)
         renderPowerupsSection(  labelX: leftLabelX,  valueX: leftValueX,  iconX: leftIconX,  topY: bottomRowY)
         renderEnemiesSection(   labelX: rightLabelX, valueX: rightValueX, iconX: rightIconX, topY: bottomRowY)
+
+        let touchHint = SKLabelNode(
+            text: "TOUCH:  \u{25C0} \u{25B6} turn  ·  \u{25B2} thrust  ·  \u{25BC} brake  ·  \u{25CF} fire  ·  D deploy"
+        )
+        touchHint.fontName = "AvenirNext-Regular"
+        touchHint.fontSize = 14
+        touchHint.fontColor = SKColor(white: 0.55, alpha: 1)
+        touchHint.position = CGPoint(x: size.width / 2, y: size.height * 0.10)
+        addChild(touchHint)
 
         let credits = SKLabelNode(text: "Designed by Markus Döring, with creative inspiration from Toni Möglich.")
         credits.fontName = "AvenirNext-Regular"
@@ -81,13 +90,14 @@ final class HelpScene: SKScene {
         var y = topY
         addHeading("CONTROLLER", x: labelX, y: y, alignment: .right); y -= 30
         for (label, value) in [
-            ("Turn",      "Left stick / D-pad"),
-            ("Thrust",    "A / R-trigger"),
-            ("Brake",     "B / R-stick down"),
-            ("Fire",      "X / R-shoulder"),
-            ("Minelayer", "Y"),
-            ("Join",      "A"),
-            ("Start",     "Menu / X / Play-Pause")
+            ("Turn",       "Left stick / D-pad"),
+            ("Thrust",     "A / R-trigger"),
+            ("Brake",      "B / R-stick down"),
+            ("Fire",       "X / R-shoulder"),
+            ("Deploy",     "Y"),
+            ("Join",       "A"),
+            ("Edit name",  "A (claimed)"),
+            ("Begin game", "Menu / X / Play-Pause")
         ] {
             addLeftRow(label: label, value: value, labelX: labelX, valueX: valueX, y: y)
             y -= 22
@@ -98,13 +108,14 @@ final class HelpScene: SKScene {
         var y = topY
         addHeading("KEYBOARD", x: labelX, y: y, alignment: .left); y -= 30
         for (label, value) in [
-            ("Turn",      "\u{2190} / \u{2192}"),
-            ("Thrust",    "\u{2191}"),
-            ("Brake",     "\u{2193}"),
-            ("Fire",      "Space"),
-            ("Minelayer", "M"),
-            ("Join",      "A"),
-            ("Start",     "Space / Enter")
+            ("Turn",       "\u{2190} / \u{2192}"),
+            ("Thrust",     "\u{2191}"),
+            ("Brake",      "\u{2193}"),
+            ("Fire",       "Space"),
+            ("Deploy",     "M"),
+            ("Join",       "A / Enter"),
+            ("Edit name",  "Enter"),
+            ("Begin game", "Space")
         ] {
             addRightRow(label: label, value: value, labelX: labelX, valueX: valueX, y: y)
             y -= 22

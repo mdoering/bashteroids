@@ -5,8 +5,8 @@ import SwiftUI
 ///
 ///   Bottom-left: ◀ ▶ side-by-side (turn).
 ///   Bottom-right (2×2):
-///     [M] [▲]      mine/torpedo · thrust
-///     [●] [▼]      fire         · brake
+///     [D] [▲]      deploy (mine/torpedo) · thrust
+///     [●] [▼]      fire                  · brake
 ///
 /// Each button is a HoldButton — turn / thrust / brake use the press/release
 /// state to drive the `…Held` flags in TouchInputState; fire and mine fire
@@ -33,7 +33,7 @@ struct TouchHUDView: View {
             // Bottom-right: 2×2 action grid.
             VStack(spacing: 18) {
                 HStack(spacing: 18) {
-                    HoldButton(symbol: "M", color: gold) { pressed in
+                    HoldButton(symbol: "D", color: gold) { pressed in
                         if pressed { TouchInputState.shared.mineTriggered() }
                     }
                     HoldButton(symbol: "▲", color: gold) { pressed in

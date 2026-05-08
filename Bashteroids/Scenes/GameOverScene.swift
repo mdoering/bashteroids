@@ -17,9 +17,9 @@ final class GameOverScene: SKScene {
     private var transitioning = false
     private var prevButtonState: [ObjectIdentifier: (menu: Bool, a: Bool, x: Bool)] = [:]
 
-    /// First key/button in a non-NORMAL survival run plays the score-reveal
-    /// animation; subsequent presses dismiss to title. NORMAL density and
-    /// the BATTLE results skip the reveal phase and go straight to dismiss.
+    /// First confirm-press in a non-NORMAL survival run plays the score-reveal
+    /// animation; subsequent confirm-presses replay. NORMAL density and the
+    /// BATTLE results skip the reveal phase and go straight to replay.
     private enum RevealState { case awaitingReveal, awaitingDismiss }
     private var revealState: RevealState = .awaitingDismiss
 
@@ -137,7 +137,9 @@ final class GameOverScene: SKScene {
         levelL.position = CGPoint(x: size.width / 2, y: size.height * levelY)
         addChild(levelL)
 
-        let hint = SKLabelNode(text: "[R / X / ▶❙❙]  PLAY AGAIN")
+        let hasHardwareKeyboard = GCKeyboard.coalesced != nil
+        let replayText = hasHardwareKeyboard ? "[R] PLAY AGAIN" : "PLAY AGAIN"
+        let hint = SKLabelNode(text: replayText)
         hint.fontName = "AvenirNext-Regular"
         hint.fontSize = 18
         hint.fontColor = SKColor(white: 0.55, alpha: 1)
@@ -166,26 +168,23 @@ final class GameOverScene: SKScene {
         // sets the correct value.
     }
 
-    /// Tap on the play-again hint replays; tap anywhere else dismisses
-    /// (or runs the score-reveal animation if it hasn't played yet).
+    /// Tap on the play-again hint replays; tap anywhere else returns to title.
     private func handleTouchTap(at point: CGPoint) {
         let hitPad: CGFloat = 16
         if let hint = hintLabel,
            hint.frame.insetBy(dx: -hitPad, dy: -hitPad).contains(point) {
             handleReplayPress()
         } else {
-            handleDismissPress()
+            returnToTitle()
         }
     }
 
     private func handleKeyDown(_ code: GCKeyCode) {
         switch code {
-        case .keyR:
-            handleReplayPress()
-        case .keyA, .spacebar, .returnOrEnter, .keypadEnter:
-            handleDismissPress()
+        case .keyR, .keyA, .spacebar, .returnOrEnter, .keypadEnter:
+            handleConfirmPress()
         case .escape:
-            MacFullScreen.exitIfActive()
+            returnToTitle()
         default:
             break
         }
@@ -195,7 +194,9 @@ final class GameOverScene: SKScene {
         guard !transitioning else { return }
         for c in manager.connectedControllers {
             let menu = c.extendedGamepad?.buttonMenu.isPressed ?? false
-            let a    = c.extendedGamepad?.buttonA.isPressed    ?? false
+            let a    = c.extendedGamepad?.buttonA.isPressed
+                    ?? c.microGamepad?.buttonA.isPressed
+                    ?? false
             let x    = c.extendedGamepad?.buttonX.isPressed
                     ?? c.microGamepad?.buttonX.isPressed
                     ?? false
@@ -206,8 +207,12 @@ final class GameOverScene: SKScene {
                 handleReplayPress()
                 break
             }
-            if (menu && !prev.menu) || (a && !prev.a) {
-                handleDismissPress()
+            if a && !prev.a {
+                handleConfirmPress()
+                break
+            }
+            if menu && !prev.menu {
+                returnToTitle()
                 break
             }
             prevButtonState[id] = (menu, a, x)
@@ -225,13 +230,15 @@ final class GameOverScene: SKScene {
         view?.presentScene(next, transition: .fade(withDuration: 0.4))
     }
 
-    private func handleDismissPress() {
+    /// Confirm-focused (the focus is implicitly on PLAY AGAIN). Plays the
+    /// score-reveal animation if it's still pending, otherwise replays.
+    private func handleConfirmPress() {
         switch revealState {
         case .awaitingReveal:
             playRevealAnimation()
             revealState = .awaitingDismiss
         case .awaitingDismiss:
-            returnToTitle()
+            handleReplayPress()
         }
     }
 
