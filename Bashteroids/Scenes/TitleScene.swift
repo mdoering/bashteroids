@@ -653,15 +653,11 @@ final class TitleScene: SKScene {
     }
 
     private func renderSelectors() {
-        let battleAvailable = manager.slots.count >= 2
         let active   = TitleScene.accentGold
         let inactive = TitleScene.accentGold.withAlphaComponent(0.4)
 
         modeLabel.text  = selectedMode == .survival ? "SURVIVAL" : "BATTLE"
         modeLabel.fontColor = focused == .mode ? active : inactive
-        if selectedMode == .battle && !battleAvailable {
-            modeLabel.fontColor = inactive   // forced dim regardless of focus
-        }
 
         levelLabel.text = "LEVEL \(selectedLevel)"
         levelLabel.fontColor = focused == .level ? active : inactive
