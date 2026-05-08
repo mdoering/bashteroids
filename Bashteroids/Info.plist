@@ -41,5 +41,16 @@
 	<true/>
 	<key>GCSupportsMultipleControllers</key>
 	<true/>
+	<key>GCSupportedGameControllers</key>
+	<array>
+		<dict>
+			<key>ProfileName</key>
+			<string>ExtendedGamepad</string>
+		</dict>
+		<dict>
+			<key>ProfileName</key>
+			<string>MicroGamepad</string>
+		</dict>
+	</array>
 </dict>
 </plist>
