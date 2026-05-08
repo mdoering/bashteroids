@@ -35,6 +35,7 @@ final class TitleScene: SKScene {
     private var modeRightArrow: SKLabelNode!
     private var levelLeftArrow: SKLabelNode!
     private var levelRightArrow: SKLabelNode!
+    private var joinHintLabel: SKLabelNode!
     private var densityLeftArrow: SKLabelNode!
     private var densityRightArrow: SKLabelNode!
     private var dpadEdge: [ObjectIdentifier: (left: Bool, right: Bool, up: Bool, down: Bool)] = [:]
@@ -79,6 +80,7 @@ final class TitleScene: SKScene {
         hint.fontColor = SKColor(white: 0.55, alpha: 1)
         hint.position = CGPoint(x: size.width / 2, y: size.height * 0.04)
         addChild(hint)
+        self.joinHintLabel = hint
 
         let edgeMargin: CGFloat = 30
         let leaderboardX: CGFloat = edgeMargin
@@ -369,6 +371,10 @@ final class TitleScene: SKScene {
 
     private func tryStart() {
         guard !transitioning, activeNameSlot == nil else { return }
+        if manager.slots.isEmpty {
+            flashJoinHint()
+            return
+        }
         if selectedMode == .battle && manager.slots.count < 2 {
             flashBattleHint()
             return
@@ -813,6 +819,22 @@ final class TitleScene: SKScene {
     private func cycleMode(by delta: Int) {
         selectedMode = (selectedMode == .survival) ? .battle : .survival
         renderSelectors()
+    }
+
+    private func flashJoinHint() {
+        joinHintLabel.removeAllActions()
+        joinHintLabel.alpha = 1
+        let pulse = SKAction.sequence([
+            .group([
+                .scale(to: 1.08, duration: 0.14),
+                .colorize(with: .white, colorBlendFactor: 1.0, duration: 0.14)
+            ]),
+            .group([
+                .scale(to: 1.0, duration: 0.32),
+                .colorize(withColorBlendFactor: 0.0, duration: 0.32)
+            ])
+        ])
+        joinHintLabel.run(pulse)
     }
 
     private func flashBattleHint() {
