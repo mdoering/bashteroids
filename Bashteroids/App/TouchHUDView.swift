@@ -1,51 +1,58 @@
 #if os(iOS)
 import SwiftUI
 
-/// On-screen controls for the iPad/Mac touch player. Two stacked buttons in
-/// each lower corner (turn ←/→ on the left, thrust/brake on the right) plus
-/// a full-area tap zone underneath: tap-anywhere-not-on-a-button fires;
-/// long-press triggers the special action (mine / torpedo).
+/// On-screen controls for the iPad/Mac touch player.
+///
+///   Bottom-left: ◀ ▶ side-by-side (turn).
+///   Bottom-right (2×2):
+///     [M] [▲]      mine/torpedo · thrust
+///     [●] [▼]      fire         · brake
+///
+/// Each button is a HoldButton — turn / thrust / brake use the press/release
+/// state to drive the `…Held` flags in TouchInputState; fire and mine fire
+/// their respective edge triggers on press.
 ///
 /// Visible only when a touch slot is claimed AND the game scene is presented.
 struct TouchHUDView: View {
     private let gold = Color(red: 245/255, green: 194/255, blue: 66/255)
 
     var body: some View {
-        ZStack {
-            // Tap-anywhere-not-on-a-button zone for fire / minelayer.
-            // Long-press first so a quick tap falls through to .onTapGesture.
-            Color.clear
-                .contentShape(Rectangle())
-                .onLongPressGesture(minimumDuration: 0.5) {
-                    TouchInputState.shared.mineTriggered()
+        HStack(alignment: .bottom) {
+            // Bottom-left: turn-left / turn-right side-by-side.
+            HStack(spacing: 18) {
+                HoldButton(symbol: "◀", color: gold) { pressed in
+                    TouchInputState.shared.leftHeld = pressed
                 }
-                .onTapGesture {
-                    TouchInputState.shared.fireTriggered()
+                HoldButton(symbol: "▶", color: gold) { pressed in
+                    TouchInputState.shared.rightHeld = pressed
                 }
+            }
 
-            HStack(alignment: .bottom) {
-                VStack(spacing: 18) {
-                    HoldButton(symbol: "◀", color: gold) { pressed in
-                        TouchInputState.shared.leftHeld = pressed
+            Spacer()
+
+            // Bottom-right: 2×2 action grid.
+            VStack(spacing: 18) {
+                HStack(spacing: 18) {
+                    HoldButton(symbol: "M", color: gold) { pressed in
+                        if pressed { TouchInputState.shared.mineTriggered() }
                     }
-                    HoldButton(symbol: "▶", color: gold) { pressed in
-                        TouchInputState.shared.rightHeld = pressed
-                    }
-                }
-                Spacer()
-                VStack(spacing: 18) {
                     HoldButton(symbol: "▲", color: gold) { pressed in
                         TouchInputState.shared.thrustHeld = pressed
+                    }
+                }
+                HStack(spacing: 18) {
+                    HoldButton(symbol: "●", color: gold) { pressed in
+                        if pressed { TouchInputState.shared.fireTriggered() }
                     }
                     HoldButton(symbol: "▼", color: gold) { pressed in
                         TouchInputState.shared.brakeHeld = pressed
                     }
                 }
             }
-            .padding(.horizontal, 30)
-            .padding(.bottom, 30)
-            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
         }
+        .padding(.horizontal, 30)
+        .padding(.bottom, 30)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
     }
 }
 
