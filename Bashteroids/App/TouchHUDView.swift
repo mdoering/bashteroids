@@ -134,6 +134,8 @@ struct GameOverTapCatcher: View {
 /// open the name editor for an already-claimed touch slot.
 struct TitleTapCatcher: View {
     @State private var pressStart: Date?
+    @State private var longPressTask: Task<Void, Never>?
+    @State private var longPressFired: Bool = false
 
     var body: some View {
         GeometryReader { proxy in
@@ -141,29 +143,59 @@ struct TitleTapCatcher: View {
                 .contentShape(Rectangle())
                 .gesture(
                     DragGesture(minimumDistance: 0)
-                        .onChanged { _ in
-                            if pressStart == nil { pressStart = Date() }
+                        .onChanged { value in
+                            if pressStart == nil {
+                                pressStart = Date()
+                                longPressFired = false
+                                let scenePoint = CGPoint(
+                                    x: value.startLocation.x,
+                                    y: proxy.size.height - value.startLocation.y
+                                )
+                                let task = Task { @MainActor in
+                                    try? await Task.sleep(nanoseconds: 400_000_000)
+                                    if Task.isCancelled { return }
+                                    longPressFired = true
+                                    NotificationCenter.default.post(
+                                        name: .titleSceneLongPress,
+                                        object: nil,
+                                        userInfo: ["location": scenePoint]
+                                    )
+                                }
+                                longPressTask = task
+                            }
+                            // Significant movement cancels the pending
+                            // long-press — the gesture is becoming a swipe
+                            // (or just a sloppy tap).
+                            if !longPressFired,
+                               abs(value.translation.width)  > 12 ||
+                               abs(value.translation.height) > 12 {
+                                longPressTask?.cancel()
+                                longPressTask = nil
+                            }
                         }
                         .onEnded { value in
-                            let elapsed = pressStart.map { Date().timeIntervalSince($0) } ?? 0
+                            longPressTask?.cancel()
+                            longPressTask = nil
                             pressStart = nil
+
+                            if longPressFired {
+                                longPressFired = false
+                                return
+                            }
 
                             let dx = value.translation.width
                             let dy = value.translation.height
                             let absDx = abs(dx)
                             let absDy = abs(dy)
-                            let startScenePoint = CGPoint(
-                                x: value.startLocation.x,
-                                y: proxy.size.height - value.startLocation.y
-                            )
                             let endScenePoint = CGPoint(
                                 x: value.location.x,
                                 y: proxy.size.height - value.location.y
                             )
+                            let startScenePoint = CGPoint(
+                                x: value.startLocation.x,
+                                y: proxy.size.height - value.startLocation.y
+                            )
 
-                            // Horizontal swipe takes precedence over tap /
-                            // long-press classification. 30 pt is the
-                            // smallest swipe iOS treats as deliberate.
                             if absDx > 30 && absDx > absDy {
                                 NotificationCenter.default.post(
                                     name: .titleSceneSwipe,
@@ -176,11 +208,8 @@ struct TitleTapCatcher: View {
                                 return
                             }
 
-                            let name: Notification.Name = elapsed >= 0.5
-                                ? .titleSceneLongPress
-                                : .titleSceneTap
                             NotificationCenter.default.post(
-                                name: name,
+                                name: .titleSceneTap,
                                 object: nil,
                                 userInfo: ["location": endScenePoint]
                             )
