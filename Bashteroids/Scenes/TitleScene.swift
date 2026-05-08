@@ -341,30 +341,10 @@ final class TitleScene: SKScene {
 
         manager.onSlotsChanged = { [weak self] in
             guard let self else { return }
-            let currentIndices = Set(self.manager.slots.map { $0.index })
-            let newlyAdded = currentIndices.subtracting(self.prevClaimedIndices).sorted()
-            if let idx = newlyAdded.first {
-                let newSlot = self.manager.slots.first(where: { $0.index == idx })
-                // Touch players skip the editor — they have no keyboard to
-                // type with and the inline editor would block game start.
-                // They get the slot's last-stored name (or "P\(idx+1)" on
-                // first launch); a name editor flow for touch players is
-                // a follow-up.
-                let isTouchSlot = newSlot?.touchInput != nil
-                if !isTouchSlot {
-                    let current = UserDefaults.standard.string(
-                        forKey: "player_name_\(idx)") ?? "P\(idx + 1)"
-                    #if os(tvOS)
-                    self.beginCoordinatorNameEntry(slot: idx, current: current)
-                    #else
-                    self.activeNameSlot = idx
-                    self.nameBuffer = current
-                    self.nameSuggestionIndex = -1
-                    self.manager.setJoinEnabled(false)
-                    #endif
-                }
-            }
-            self.prevClaimedIndices = currentIndices
+            // Slot claims keep the previously stored name (or "P\(idx+1)"
+            // on first launch). The name editor only opens when the player
+            // explicitly asks for it via focus + A on their own tile.
+            self.prevClaimedIndices = Set(self.manager.slots.map { $0.index })
             self.renderSlots()
             self.renderSelectors()
         }
@@ -579,6 +559,11 @@ final class TitleScene: SKScene {
         // controller confirms the entry — gives controller-only setups a way
         // out without a keyboard. When name entry is not active, A is routed
         // through the focus-confirm path further down.
+        //
+        // When confirmName fires, also pre-set this controller's
+        // aWasPressed[id] so the same A press doesn't ALSO trigger
+        // confirmFocused below — that would re-open the editor immediately
+        // because the controller is now claimed at the focused slot.
         for (i, slot) in manager.slots.enumerated() {
             let pressed = slot.controller?.extendedGamepad?.buttonA.isPressed
                 ?? slot.controller?.microGamepad?.buttonA.isPressed
@@ -587,6 +572,9 @@ final class TitleScene: SKScene {
             slotAWasPressed[i] = pressed
             if nameEntryActive, pressed && !was {
                 confirmName()
+                if let c = slot.controller {
+                    aWasPressed[ObjectIdentifier(c)] = pressed
+                }
             }
         }
 
@@ -1094,7 +1082,8 @@ final class TitleScene: SKScene {
 
     /// Horizontal navigation.
     /// - While editing a selector: left/right cycles its value.
-    /// - Slot row: moves between tiles (clamped — no wrap).
+    /// - Slot row: moves between tiles (clamped). Slot 3 right exits to the
+    ///   audio selector (rightmost slot is adjacent to the selector column).
     /// - Selector / help / start: left exits the column to slot 3 (P4),
     ///   right is a no-op.
     private func cycleFocusedHorizontal(by delta: Int) {
@@ -1111,6 +1100,12 @@ final class TitleScene: SKScene {
             setSlotFocus(delta > 0 ? 3 : 1)
         case .slot3:
             if delta < 0 { setSlotFocus(2) }
+            else {
+                focused = .audio
+                editingSelector = false
+                renderSelectors()
+                renderSlots()
+            }
         case .mode, .level, .density, .audio, .help, .start:
             if delta < 0 { setSlotFocus(3) }
         }

@@ -91,9 +91,13 @@ The title scene uses a single shared focus, navigable from any input device. **D
 
 **Navigation:**
 - D-pad / arrow keys.
-- Slot row: down → start, up → mode. Left/right cycles slot tiles (clamped, no wrap).
+- Slot row: down → start, up → mode. Left/right moves between tiles (clamped — slot0 left and slot3 right don't wrap), with one exception: slot3 right → audio (the rightmost slot is adjacent to the selector column visually).
 - Selectors / help / start: left → slot 3 (P4). Up/down moves through the column. Right cycles selector value **only while in edit mode** (see below).
 - mode-up returns to the slot you came from (`lastSlotFocusIndex`).
+
+**Claim-keeps-stored-name:**
+- Joining a slot does **not** auto-open the name editor. The slot keeps its previously stored name (or the `P\(idx+1)` default on first launch). To rename, the player must explicitly focus their own tile and press A (controller / keyboard) or long-press it (touch).
+- The pre-October-2026 auto-open behavior was removed; don't restore it without asking.
 
 **Modal selector editing:**
 - A on a focused selector toggles edit mode (visual cue: arrows scale to 1.3×).
