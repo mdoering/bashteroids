@@ -45,6 +45,7 @@ final class ControllerManager {
 
         for c in GCController.controllers() {
             wireSystemHandlers(c)
+            assignDefaultIntent(for: c)
             installJoinHandler(c)
         }
         GCController.startWirelessControllerDiscovery(completionHandler: nil)
@@ -103,11 +104,13 @@ final class ControllerManager {
 
     /// Release a single controller's slot — used by the title scene's "leave
     /// slot" binding (B on extended controllers). The controller becomes
-    /// joinable again immediately.
+    /// joinable again immediately, with its preview marker parked on the
+    /// slot it just left so it doesn't snap back to the leftmost (red) tile.
     func releaseSlot(for controller: GCController) {
-        guard slot(for: controller) != nil else { return }
+        guard let slot = slot(for: controller) else { return }
+        let releasedIndex = slot.index
         slots.removeAll { $0.controller === controller }
-        intendedSlot.removeValue(forKey: ObjectIdentifier(controller))
+        intendedSlot[ObjectIdentifier(controller)] = releasedIndex
         installJoinHandler(controller)
         TouchOverlayState.shared.recompute()
         onSlotsChanged?()
@@ -117,9 +120,27 @@ final class ControllerManager {
 
     private func handleConnect(_ controller: GCController) {
         wireSystemHandlers(controller)
+        assignDefaultIntent(for: controller)
         installJoinHandler(controller)
         TouchOverlayState.shared.recompute()
         onSlotsChanged?()
+    }
+
+    /// Pick a default intended slot for a freshly connected controller,
+    /// avoiding slots already targeted by other unclaimed controllers — so
+    /// two controllers connecting to a fresh title don't both stack their
+    /// preview triangles on the leftmost (red) tile.
+    private func assignDefaultIntent(for controller: GCController) {
+        let id = ObjectIdentifier(controller)
+        let empty = emptySlotIndices()
+        let alreadyTargeted = Set(
+            intendedSlot
+                .filter { $0.key != id }
+                .values
+        )
+        if let pick = empty.first(where: { !alreadyTargeted.contains($0) }) ?? empty.first {
+            intendedSlot[id] = pick
+        }
     }
 
     private func handleDisconnect(_ controller: GCController) {
