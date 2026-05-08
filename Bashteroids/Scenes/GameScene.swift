@@ -598,8 +598,9 @@ final class GameScene: SKScene {
     private func checkEndCondition() {
         let alive = ships.filter { $0.alive }
         if mode == .survival {
-            // Co-op: ends only when every player is dead.
-            if alive.isEmpty { finish(winner: nil) }
+            // Co-op: ends only when every player is dead. With zero ships
+            // (0-player demo run) the game runs forever — no spurious end.
+            if !ships.isEmpty && alive.isEmpty { finish(winner: nil) }
         } else {
             // BATTLE: last-ship-standing.
             if initialShipCount == 1 {

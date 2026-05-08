@@ -240,7 +240,7 @@ final class TitleScene: SKScene {
     }
 
     private func tryStart() {
-        guard !transitioning, !manager.slots.isEmpty, activeNameSlot == nil else { return }
+        guard !transitioning, activeNameSlot == nil else { return }
         if selectedMode == .battle && manager.slots.count < 2 {
             flashBattleHint()
             return
@@ -673,7 +673,8 @@ final class TitleScene: SKScene {
         levelLeftArrow.fontColor  = focused == .level ? active : inactive
         levelRightArrow.fontColor = focused == .level ? active : inactive
 
-        battleHintLabel.alpha = battleAvailable ? 0 : 1
+        // Hint stays hidden by default; flashBattleHint() shows it briefly
+        // when the player tries to start BATTLE without enough slots claimed.
     }
 
     private func cycleMode(by delta: Int) {
@@ -694,7 +695,9 @@ final class TitleScene: SKScene {
                 .scale(to: 1.0,  duration: 0.18),
                 .colorize(with: SKColor(red: 0.7, green: 0.4, blue: 0.4, alpha: 1),
                           colorBlendFactor: 0.0, duration: 0.18)
-            ])
+            ]),
+            .wait(forDuration: 1.2),
+            .fadeOut(withDuration: 0.4),
         ])
         battleHintLabel.run(pulse)
     }
