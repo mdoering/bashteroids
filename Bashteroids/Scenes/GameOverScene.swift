@@ -133,7 +133,7 @@ final class GameOverScene: SKScene {
         levelL.position = CGPoint(x: size.width / 2, y: size.height * levelY)
         addChild(levelL)
 
-        let hint = SKLabelNode(text: "[R / X / ▶❙❙] PLAY AGAIN  ·  [SPACE] TITLE")
+        let hint = SKLabelNode(text: "[R / X / ▶❙❙]  PLAY AGAIN")
         hint.fontName = "AvenirNext-Regular"
         hint.fontSize = 18
         hint.fontColor = SKColor(white: 0.55, alpha: 1)
