@@ -318,7 +318,12 @@ final class TitleScene: SKScene {
             titleLongPressObserver = nil
         }
         TouchOverlayState.shared.setScene(.other)
-        MusicPlayer.shared.stop()
+        // Music is NOT stopped here — willMove(from:) on the old scene fires
+        // *after* didMove(to:) on the new scene in SpriteKit transitions, so
+        // stopping here would clobber the next scene's just-started track.
+        // Each scene's didMove is responsible for setting the desired audio
+        // state (TitleScene plays rivers, HelpScene plays help, GameScene
+        // stops music outright).
     }
 
     /// Hit-test the slot tile rects against a SwiftUI-forwarded tap location

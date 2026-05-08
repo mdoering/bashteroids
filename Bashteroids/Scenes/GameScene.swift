@@ -76,6 +76,7 @@ final class GameScene: SKScene {
     override func didMove(to view: SKView) {
         backgroundColor = .black
         TouchOverlayState.shared.setScene(.game)
+        MusicPlayer.shared.stop()   // gameplay scenes are silent (SFX only)
         GameSettings.lastPlayedLevel = currentLevel
         spawner = Spawner(bounds: playBounds, glowParent: self)
         spawner.mode = mode
