@@ -23,7 +23,7 @@ final class TitleScene: SKScene {
     private var selectedDensity: PowerUpDensity = GameSettings.sessionPowerUpDensity
     private var selectedAudio: AudioMode = GameSettings.audioMode
 
-    private enum FocusItem: CaseIterable { case mode, level, density, help, audio }
+    private enum FocusItem: CaseIterable { case mode, level, density, audio, help }
     private var focused: FocusItem = .mode
 
     private var modeLabel: SKLabelNode!
