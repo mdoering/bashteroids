@@ -97,18 +97,13 @@ final class TitleScene: SKScene {
         let scoreX: CGFloat = leaderboardX + 175
         let tableWidth = scoreX - nameX
 
-        // Highscore block sits below the audio selector that occupies the
-        // top-left corner. Heading top at topAnchorY - 60 leaves room for
-        // the audio value (~26 px) + caption (~12 px) plus a gap.
-        let highscoreTopY = topAnchorY - 60
-
         let heading = SKLabelNode(text: "HIGHSCORES")
         heading.fontName = "AvenirNext-Bold"
         heading.fontSize = 22
         heading.fontColor = TitleScene.accentGold
         heading.horizontalAlignmentMode = .left
         heading.verticalAlignmentMode = .top
-        heading.position = CGPoint(x: leaderboardX, y: highscoreTopY)
+        heading.position = CGPoint(x: leaderboardX, y: topAnchorY)
         addChild(heading)
         // Scale heading font up so its rendered width matches the table width below.
         if heading.frame.width > 0 {
@@ -117,7 +112,7 @@ final class TitleScene: SKScene {
 
         let firstEntryColor  = SKColor(red: 231/255, green: 63/255,  blue: 150/255, alpha: 1)
         let otherEntryColor  = SKColor(red: 98/255,  green: 212/255, blue: 214/255, alpha: 1)
-        let firstEntryY = highscoreTopY - heading.frame.height - 16
+        let firstEntryY = topAnchorY - heading.frame.height - 16
         for (i, entry) in HighScore.top.enumerated() {
             let y = firstEntryY - CGFloat(24 * i)
             let color = i == 0 ? firstEntryColor : otherEntryColor
@@ -275,20 +270,18 @@ final class TitleScene: SKScene {
         addChild(helpL)
         self.helpLabel = helpL
 
-        // Audio selector — top-left corner, top-aligned with the right-
-        // side mode selector; left edge of the `<` arrow shares the
-        // edgeMargin with the highscore column.
-        let audioY = topAnchorY
-        let audioSelectorLeftX = edgeMargin
-        let audioSelectorCenterX = audioSelectorLeftX + 12 + arrowGap + valueHalfWidth
+        // Audio selector — bottom of the right-side selector column,
+        // below the (mostly invisible) battle hint, mirroring the other
+        // right-aligned selectors.
+        let audioY = battleHintY - 50
 
         let audioLeft = SKLabelNode(text: "<")
         audioLeft.fontName = "AvenirNext-Regular"
         audioLeft.fontSize = 22
         audioLeft.fontColor = TitleScene.accentGold
         audioLeft.verticalAlignmentMode = .top
-        audioLeft.horizontalAlignmentMode = .left
-        audioLeft.position = CGPoint(x: audioSelectorLeftX, y: audioY)
+        audioLeft.horizontalAlignmentMode = .right
+        audioLeft.position = CGPoint(x: selectorCenterX - valueHalfWidth - arrowGap, y: audioY)
         addChild(audioLeft)
         self.audioLeftArrow = audioLeft
 
@@ -297,8 +290,8 @@ final class TitleScene: SKScene {
         audioRight.fontSize = 22
         audioRight.fontColor = TitleScene.accentGold
         audioRight.verticalAlignmentMode = .top
-        audioRight.horizontalAlignmentMode = .left
-        audioRight.position = CGPoint(x: audioSelectorCenterX + valueHalfWidth + arrowGap, y: audioY)
+        audioRight.horizontalAlignmentMode = .right
+        audioRight.position = CGPoint(x: selectorRightX, y: audioY)
         addChild(audioRight)
         self.audioRightArrow = audioRight
 
@@ -306,7 +299,7 @@ final class TitleScene: SKScene {
         audioValue.fontName = "AvenirNext-Bold"
         audioValue.fontSize = 26
         audioValue.verticalAlignmentMode = .top
-        audioValue.position = CGPoint(x: audioSelectorCenterX, y: audioY)
+        audioValue.position = CGPoint(x: selectorCenterX, y: audioY)
         addChild(audioValue)
         self.audioLabel = audioValue
 
@@ -315,7 +308,7 @@ final class TitleScene: SKScene {
         audioCap.fontSize = 12
         audioCap.fontColor = SKColor(white: 0.55, alpha: 1)
         audioCap.verticalAlignmentMode = .top
-        audioCap.position = CGPoint(x: audioSelectorCenterX, y: audioY - 28)
+        audioCap.position = CGPoint(x: selectorCenterX, y: audioY - 28)
         addChild(audioCap)
         self.audioCaption = audioCap
 
