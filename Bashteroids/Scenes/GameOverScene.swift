@@ -10,6 +10,7 @@ final class GameOverScene: SKScene {
     }
 
     private let result: Result
+    private let level: Int
     private let manager = ControllerManager.shared
     private var transitioning = false
     private var prevButtonState: [ObjectIdentifier: (menu: Bool, a: Bool)] = [:]
@@ -26,8 +27,9 @@ final class GameOverScene: SKScene {
     private var revealedFinalScore: Int = 0
     private var revealedPlayerCountIsTeam: Bool = false
 
-    init(size: CGSize, result: Result) {
+    init(size: CGSize, result: Result, level: Int) {
         self.result = result
+        self.level = level
         super.init(size: size)
     }
 
@@ -51,6 +53,13 @@ final class GameOverScene: SKScene {
         // any thrust loop survived the transition we silence it again here
         // so the game-over screen is silent.
         AudioEngine.shared.stopAllThrust()
+
+        let levelL = SKLabelNode(text: "LEVEL \(level)")
+        levelL.fontName = "AvenirNext-Regular"
+        levelL.fontSize = 18
+        levelL.fontColor = SKColor(white: 0.65, alpha: 1)
+        levelL.position = CGPoint(x: size.width / 2, y: size.height * 0.49)
+        addChild(levelL)
 
         switch result {
         case .survivalEnd(let lastName, let lastColor, let baseScore, let density, let playerCount):
