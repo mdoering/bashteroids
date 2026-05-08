@@ -10,7 +10,7 @@ Bashteroids — a classic-vector Asteroids clone for iPad + Mac (Catalyst) + App
 
 These were settled during planning. Don't relitigate without asking.
 
-- **Stack:** SpriteKit + Swift, single Xcode target, iOS 17+ / tvOS 17+ deployment, iPad landscape only, Mac Catalyst enabled, tvOS enabled. No Android, no cross-platform engine.
+- **Stack:** SpriteKit + Swift, single Xcode target, iOS 17+ / tvOS 17+ deployment, iPad with all four orientations declared (Apple is deprecating `UIRequiresFullScreen` and orientation-locking; gameplay is designed around landscape but the app no longer refuses portrait), Mac Catalyst enabled, tvOS enabled. No Android, no cross-platform engine.
 - **Multiplayer:** Local couch co-op only, 1–4 players, each with their own Bluetooth controller. **No networking.**
 - **Assets:** Fully procedural. Graphics are `SKShapeNode` line primitives via `CGPath`. Audio is synthesized with `AVAudioEngine` (oscillators + noise + ADSR). Do **not** add `.png`, `.wav`, `.caf`, etc. — there are no asset files.
 - **Physics:** Custom integration in the `update(_:)` loop. Do **not** use `SKPhysicsBody` / SpriteKit's physics engine — screen-wrapping inertia and the precise collision rules are simpler with hand-rolled circle-vs-circle.
