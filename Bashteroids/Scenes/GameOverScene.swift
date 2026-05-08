@@ -3,7 +3,8 @@ import GameController
 
 final class GameOverScene: SKScene {
     enum Result {
-        case survivalEnd(lastPlayerName: String, lastPlayerColor: SKColor, totalScore: Int, playerCount: Int)
+        case survivalEnd(lastPlayerName: String, lastPlayerColor: SKColor,
+                         baseScore: Int, density: PowerUpDensity, playerCount: Int)
         case battleWinner(color: SKColor, name: String)
         case battleDraw
     }
@@ -49,20 +50,32 @@ final class GameOverScene: SKScene {
         AudioEngine.shared.stopAllThrust()
 
         switch result {
-        case .survivalEnd(let lastName, let lastColor, let totalScore, let playerCount):
+        case .survivalEnd(let lastName, let lastColor, let baseScore, let density, let playerCount):
             renderBanner(text: "GAME OVER", color: .white)
-            let scoreLabel = SKLabelNode(text: playerCount > 1 ? "TEAM SCORE: \(totalScore)" : "SCORE: \(totalScore)")
+            let finalScore = Int((Double(baseScore) * density.scoreMultiplier).rounded())
+            let scoreLabel = SKLabelNode(text: playerCount > 1 ? "TEAM SCORE: \(finalScore)" : "SCORE: \(finalScore)")
             scoreLabel.fontName = "AvenirNext-Bold"
             scoreLabel.fontSize = 32
             scoreLabel.fontColor = SKColor(red: 245/255, green: 194/255, blue: 66/255, alpha: 1)
             scoreLabel.position = CGPoint(x: size.width / 2, y: size.height * 0.45)
             addChild(scoreLabel)
+
+            if let mulDisplay = density.scoreMultiplierDisplay {
+                let calc = SKLabelNode(text: "\(baseScore) \(mulDisplay) = \(finalScore)  ·  \(density.label) POWERUPS")
+                calc.fontName = "AvenirNext-Regular"
+                calc.fontSize = 18
+                calc.fontColor = SKColor(white: 0.7, alpha: 1)
+                calc.position = CGPoint(x: size.width / 2, y: size.height * 0.40)
+                addChild(calc)
+            }
+
             if playerCount > 1 {
                 let footer = SKLabelNode(text: "\(lastName) SURVIVED LONGEST")
                 footer.fontName = "AvenirNext-Regular"
                 footer.fontSize = 22
                 footer.fontColor = lastColor
-                footer.position = CGPoint(x: size.width / 2, y: size.height * 0.39)
+                let footerY = density.scoreMultiplierDisplay == nil ? 0.39 : 0.35
+                footer.position = CGPoint(x: size.width / 2, y: size.height * footerY)
                 addChild(footer)
             }
         case .battleWinner(let c, let name):

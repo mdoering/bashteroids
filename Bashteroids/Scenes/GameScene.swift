@@ -841,7 +841,8 @@ final class GameScene: SKScene {
             // Survival co-op: sum scores, record one entry under the
             // last-to-die player. On simultaneous deaths (max tick tied),
             // pick the lowest player index — deterministic.
-            let totalScore = ships.reduce(0) { $0 + $1.score }
+            let baseScore = ships.reduce(0) { $0 + $1.score }
+            let finalScore = Int((Double(baseScore) * density.scoreMultiplier).rounded())
             let maxTick = shipDeathTick.values.max() ?? 0
             let candidates = shipDeathTick.filter { $0.value == maxTick }.keys.sorted()
             let lastIdx = candidates.first ?? 0
@@ -850,12 +851,13 @@ final class GameScene: SKScene {
                 ?? "P\(lastIdx + 1)"
             let lastColor = lastShip?.color ?? .white
 
-            if totalScore > 0 {
-                HighScore.record(name: lastName, score: totalScore, level: currentLevel)
+            if finalScore > 0 {
+                HighScore.record(name: lastName, score: finalScore, level: currentLevel)
             }
             result = .survivalEnd(lastPlayerName: lastName,
                                   lastPlayerColor: lastColor,
-                                  totalScore: totalScore,
+                                  baseScore: baseScore,
+                                  density: density,
                                   playerCount: ships.count)
         }
 

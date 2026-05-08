@@ -3,7 +3,6 @@ import Foundation
 enum GameSettings {
     private static let levelKey   = "bashteroids.lastPlayedLevel"
     private static let modeKey    = "bashteroids.lastMode"
-    private static let densityKey = "bashteroids.lastPowerUpDensity"
 
     static var lastPlayedLevel: Int {
         get {
@@ -22,12 +21,8 @@ enum GameSettings {
         set { UserDefaults.standard.set(newValue.rawValue, forKey: modeKey) }
     }
 
-    static var lastPowerUpDensity: PowerUpDensity {
-        get {
-            guard let raw = UserDefaults.standard.string(forKey: densityKey),
-                  let value = PowerUpDensity(rawValue: raw) else { return .normal }
-            return value
-        }
-        set { UserDefaults.standard.set(newValue.rawValue, forKey: densityKey) }
-    }
+    /// Powerup density is intentionally session-only: every app launch starts
+    /// at .normal, but cycling the selector during a session sticks across
+    /// subsequent games until the app quits.
+    static var sessionPowerUpDensity: PowerUpDensity = .normal
 }

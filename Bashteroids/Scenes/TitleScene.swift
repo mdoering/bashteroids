@@ -20,7 +20,7 @@ final class TitleScene: SKScene {
     private var slotAWasPressed: [Int: Bool] = [:]
     private var selectedLevel: Int = GameSettings.lastPlayedLevel
     private var selectedMode: GameMode = GameSettings.lastMode
-    private var selectedDensity: PowerUpDensity = GameSettings.lastPowerUpDensity
+    private var selectedDensity: PowerUpDensity = GameSettings.sessionPowerUpDensity
 
     private enum FocusItem: CaseIterable { case mode, level, density, help }
     private var focused: FocusItem = .mode
@@ -382,7 +382,7 @@ final class TitleScene: SKScene {
         transitioning = true
         GameSettings.lastPlayedLevel = selectedLevel
         GameSettings.lastMode = selectedMode
-        GameSettings.lastPowerUpDensity = selectedDensity
+        GameSettings.sessionPowerUpDensity = selectedDensity
         let next = GameScene(size: size, level: selectedLevel, mode: selectedMode,
                              density: selectedDensity)
         next.scaleMode = scaleMode
@@ -899,6 +899,7 @@ final class TitleScene: SKScene {
         let next = max(0, min(cases.count - 1, i + delta))
         if next != i {
             selectedDensity = cases[next]
+            GameSettings.sessionPowerUpDensity = selectedDensity
             renderSelectors()
         }
     }
