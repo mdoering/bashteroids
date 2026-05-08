@@ -73,6 +73,7 @@ final class GameScene: SKScene {
 
     override func didMove(to view: SKView) {
         backgroundColor = .black
+        TouchOverlayState.shared.setScene(.game)
         GameSettings.lastPlayedLevel = currentLevel
         spawner = Spawner(bounds: playBounds, glowParent: self)
         spawner.mode = mode
@@ -109,6 +110,8 @@ final class GameScene: SKScene {
     override func willMove(from view: SKView) {
         audio.stopAllThrust()
         manager.keyboardInput.releaseAll()
+        TouchInputState.shared.releaseAll()
+        TouchOverlayState.shared.setScene(.other)
     }
 
     private func handleKeyDown(_ code: GCKeyCode) {

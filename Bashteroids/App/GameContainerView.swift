@@ -3,6 +3,7 @@ import SpriteKit
 
 struct GameContainerView: View {
     @StateObject private var nameEntry = NameEntryCoordinator.shared
+    @ObservedObject private var touchOverlay = TouchOverlayState.shared
 
     var body: some View {
         ZStack {
@@ -14,6 +15,17 @@ struct GameContainerView: View {
                 )
             }
             .background(.black)
+
+            #if os(iOS)
+            if touchOverlay.titleTapActive {
+                TitleTapCatcher()
+                    .ignoresSafeArea()
+            }
+            if touchOverlay.inGameHUDVisible {
+                TouchHUDView()
+                    .ignoresSafeArea()
+            }
+            #endif
 
             #if os(tvOS)
             if nameEntry.request != nil {

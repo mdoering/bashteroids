@@ -33,9 +33,19 @@ final class TitleScene: SKScene {
     private var levelLeftArrow: SKLabelNode!
     private var levelRightArrow: SKLabelNode!
     private var dpadEdge: [ObjectIdentifier: (left: Bool, right: Bool, up: Bool, down: Bool)] = [:]
+    private var titleTapObserver: NSObjectProtocol?
 
     override func didMove(to view: SKView) {
         backgroundColor = .black
+
+        TouchOverlayState.shared.setScene(.title)
+        titleTapObserver = NotificationCenter.default.addObserver(
+            forName: .titleSceneTap, object: nil, queue: .main
+        ) { [weak self] note in
+            guard let self,
+                  let location = note.userInfo?["location"] as? CGPoint else { return }
+            MainActor.assumeIsolated { self.handleTouchTap(at: location) }
+        }
 
         // Poster background — aspect-fill so the landscape image covers the
         // whole screen on any aspect ratio (iPad 4:3 crops sides slightly,
@@ -237,6 +247,35 @@ final class TitleScene: SKScene {
         manager.setJoinEnabled(false)
         manager.onSlotsChanged = nil
         manager.onStartPressed = nil
+        if let obs = titleTapObserver {
+            NotificationCenter.default.removeObserver(obs)
+            titleTapObserver = nil
+        }
+        TouchOverlayState.shared.setScene(.other)
+    }
+
+    /// Hit-test the slot tile rects against a SwiftUI-forwarded tap location
+    /// (already in scene coords). On a hit on an empty tile, claim it for
+    /// the touch player.
+    private func handleTouchTap(at point: CGPoint) {
+        guard !manager.hasTouchPlayer else { return }
+        let count = ControllerManager.maxPlayers
+        let tileWidth: CGFloat = 110
+        let spacing: CGFloat = 24
+        let totalWidth = CGFloat(count) * tileWidth + CGFloat(count - 1) * spacing
+        let startX = (size.width - totalWidth) / 2 + tileWidth / 2
+        let y = size.height * 0.46
+        for i in 0..<count {
+            let cx = startX + CGFloat(i) * (tileWidth + spacing)
+            let rect = CGRect(x: cx - tileWidth / 2, y: y - tileWidth / 2,
+                              width: tileWidth, height: tileWidth)
+            if rect.contains(point) {
+                if manager.emptySlotIndices().contains(i) {
+                    manager.claimTouch(atSlot: i)
+                }
+                return
+            }
+        }
     }
 
     private func tryStart() {

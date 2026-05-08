@@ -14,6 +14,7 @@ final class PlayerSlot {
     let color: SKColor
     weak var controller: GCController?
     let keyboard: KeyboardInputState?
+    let touchInput: TouchInputState?
 
     private var firePressedEdge: Bool = false
     private var minelayerEdge: Bool = false
@@ -23,6 +24,7 @@ final class PlayerSlot {
         self.color = color
         self.controller = controller
         self.keyboard = nil
+        self.touchInput = nil
         installFireHandler()
     }
 
@@ -31,6 +33,15 @@ final class PlayerSlot {
         self.color = color
         self.controller = nil
         self.keyboard = keyboard
+        self.touchInput = nil
+    }
+
+    init(touchIndex index: Int, color: SKColor, touchInput: TouchInputState) {
+        self.index = index
+        self.color = color
+        self.controller = nil
+        self.keyboard = nil
+        self.touchInput = touchInput
     }
 
     /// DEBUG: dummy slot with no input source. snapshot() returns the all-zero
@@ -40,6 +51,7 @@ final class PlayerSlot {
         self.color = color
         self.controller = nil
         self.keyboard = nil
+        self.touchInput = nil
     }
 
     deinit {
@@ -48,6 +60,7 @@ final class PlayerSlot {
 
     func snapshot() -> PlayerInput {
         if let kb = keyboard { return kb.snapshot() }
+        if let touch = touchInput { return touch.snapshot() }
 
         let edge = firePressedEdge
         firePressedEdge = false

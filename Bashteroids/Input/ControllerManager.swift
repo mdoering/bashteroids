@@ -19,6 +19,7 @@ final class ControllerManager {
     var onStartPressed: (() -> Void)?
 
     var hasKeyboardPlayer: Bool { slots.contains { $0.keyboard != nil } }
+    var hasTouchPlayer: Bool    { slots.contains { $0.touchInput != nil } }
 
     private var joinEnabled = false
     /// For unclaimed controllers, which empty slot index this controller will
@@ -96,6 +97,7 @@ final class ControllerManager {
         for c in connectedControllers {
             installJoinHandler(c)
         }
+        TouchOverlayState.shared.recompute()
         onSlotsChanged?()
     }
 
@@ -104,6 +106,7 @@ final class ControllerManager {
     private func handleConnect(_ controller: GCController) {
         wireSystemHandlers(controller)
         installJoinHandler(controller)
+        TouchOverlayState.shared.recompute()
         onSlotsChanged?()
     }
 
@@ -111,7 +114,10 @@ final class ControllerManager {
         let removed = slots.contains { $0.controller === controller }
         slots.removeAll { $0.controller === controller }
         intendedSlot.removeValue(forKey: ObjectIdentifier(controller))
-        if removed { onSlotsChanged?() }
+        if removed {
+            TouchOverlayState.shared.recompute()
+            onSlotsChanged?()
+        }
     }
 
     // MARK: - Handler wiring
@@ -162,6 +168,23 @@ final class ControllerManager {
         let index = slots.count
         let slot = PlayerSlot(index: index, color: Self.playerColors[index], keyboard: keyboardInput)
         slots.append(slot)
+        TouchOverlayState.shared.recompute()
+        onSlotsChanged?()
+        return slot
+    }
+
+    /// Claim a specific empty slot for the touch player. At most one touch
+    /// slot may exist at a time; subsequent calls are no-ops.
+    @discardableResult
+    func claimTouch(atSlot index: Int) -> PlayerSlot? {
+        guard !hasTouchPlayer else { return nil }
+        guard emptySlotIndices().contains(index) else { return nil }
+        let slot = PlayerSlot(touchIndex: index,
+                              color: Self.playerColors[index],
+                              touchInput: TouchInputState.shared)
+        slots.append(slot)
+        slots.sort { $0.index < $1.index }
+        TouchOverlayState.shared.recompute()
         onSlotsChanged?()
         return slot
     }
@@ -175,6 +198,7 @@ final class ControllerManager {
         let index = slots.count
         let slot = PlayerSlot(dummyIndex: index, color: Self.playerColors[index])
         slots.append(slot)
+        TouchOverlayState.shared.recompute()
         onSlotsChanged?()
         return slot
     }
@@ -193,6 +217,7 @@ final class ControllerManager {
         slots.sort { $0.index < $1.index }   // keep iteration order stable
         intendedSlot.removeValue(forKey: ObjectIdentifier(controller))
         installJoinHandler(controller)
+        TouchOverlayState.shared.recompute()
         onSlotsChanged?()
         return slot
     }
