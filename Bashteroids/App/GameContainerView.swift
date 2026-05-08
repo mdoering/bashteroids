@@ -21,6 +21,10 @@ struct GameContainerView: View {
                 TitleTapCatcher()
                     .ignoresSafeArea()
             }
+            if touchOverlay.helpTapActive {
+                HelpTapCatcher()
+                    .ignoresSafeArea()
+            }
             if touchOverlay.gameOverTapActive {
                 GameOverTapCatcher()
                     .ignoresSafeArea()

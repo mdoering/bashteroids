@@ -82,6 +82,19 @@ private struct HoldButton: View {
     }
 }
 
+/// Transparent full-screen tap catcher for the help scene. Any tap
+/// dismisses (returns to title) — matches the keyboard ESC/SPACE and
+/// "any controller button" behaviour.
+struct HelpTapCatcher: View {
+    var body: some View {
+        Color.clear
+            .contentShape(Rectangle())
+            .onTapGesture {
+                NotificationCenter.default.post(name: .helpSceneTap, object: nil)
+            }
+    }
+}
+
 /// Transparent full-screen tap catcher for the game-over scene. Forwards
 /// every tap (in SpriteKit scene coordinates) to GameOverScene via the
 /// .gameOverSceneTap notification.

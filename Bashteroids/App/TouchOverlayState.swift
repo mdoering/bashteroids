@@ -9,7 +9,7 @@ import Foundation
 final class TouchOverlayState: ObservableObject {
     static let shared = TouchOverlayState()
 
-    enum Scene { case title, game, gameOver, other }
+    enum Scene { case title, game, gameOver, help, other }
 
     @Published private(set) var scene: Scene = .other
     @Published private(set) var hasTouchSlot: Bool = false
@@ -21,6 +21,8 @@ final class TouchOverlayState: ObservableObject {
     var titleTapActive: Bool { scene == .title }
     /// `true` when the game-over tap-catcher should be active.
     var gameOverTapActive: Bool { scene == .gameOver }
+    /// `true` when the help-screen tap-catcher should be active.
+    var helpTapActive: Bool { scene == .help }
 
     func setScene(_ scene: Scene) {
         if self.scene != scene { self.scene = scene }
@@ -46,4 +48,7 @@ extension Notification.Name {
 
     /// Posted by the SwiftUI game-over overlay on tap. Same userInfo shape.
     static let gameOverSceneTap = Notification.Name("GameOverSceneTap")
+
+    /// Posted by the SwiftUI help-screen overlay on tap (any tap dismisses).
+    static let helpSceneTap = Notification.Name("HelpSceneTap")
 }

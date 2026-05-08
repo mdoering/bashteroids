@@ -5,6 +5,7 @@ final class HelpScene: SKScene {
     private let manager = ControllerManager.shared
     private var transitioning = false
     private var prevPressed: [ObjectIdentifier: Bool] = [:]
+    private var tapObserver: NSObjectProtocol?
 
     private let goldColor   = SKColor(red: 245/255, green: 194/255, blue: 66/255, alpha: 1)
     private let labelColor  = SKColor.white
@@ -18,8 +19,14 @@ final class HelpScene: SKScene {
     override func didMove(to view: SKView) {
         backgroundColor = .black
 
-        TouchOverlayState.shared.setScene(.other)
+        TouchOverlayState.shared.setScene(.help)
         MusicPlayer.shared.play(resource: "help", ext: "m4a")
+
+        tapObserver = NotificationCenter.default.addObserver(
+            forName: .helpSceneTap, object: nil, queue: .main
+        ) { [weak self] _ in
+            MainActor.assumeIsolated { self?.returnToTitle() }
+        }
 
         let bgTexture = SKTexture(imageNamed: "HelpBackground")
         let bgImgSize = bgTexture.size()
@@ -324,5 +331,12 @@ final class HelpScene: SKScene {
         let next = TitleScene(size: size)
         next.scaleMode = scaleMode
         view?.presentScene(next, transition: .fade(withDuration: 0.3))
+    }
+
+    override func willMove(from view: SKView) {
+        if let obs = tapObserver {
+            NotificationCenter.default.removeObserver(obs)
+            tapObserver = nil
+        }
     }
 }
