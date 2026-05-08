@@ -203,17 +203,25 @@ final class GameOverScene: SKScene {
             let id = ObjectIdentifier(c)
             let prev = prevButtonState[id] ?? (menu: false, a: false, x: false)
 
-            if x && !prev.x {
-                handleReplayPress()
-                break
-            }
-            if a && !prev.a {
-                handleConfirmPress()
-                break
-            }
-            if menu && !prev.menu {
-                returnToTitle()
-                break
+            // Awaiting reveal: any press plays the score-reveal animation.
+            // After reveal: only A replays; every other button returns to
+            // the title scene.
+            if revealState == .awaitingReveal {
+                if (a && !prev.a) || (x && !prev.x) || (menu && !prev.menu) {
+                    playRevealAnimation()
+                    revealState = .awaitingDismiss
+                    prevButtonState[id] = (menu, a, x)
+                    break
+                }
+            } else {
+                if a && !prev.a {
+                    handleReplayPress()
+                    break
+                }
+                if (x && !prev.x) || (menu && !prev.menu) {
+                    returnToTitle()
+                    break
+                }
             }
             prevButtonState[id] = (menu, a, x)
         }
