@@ -1,8 +1,9 @@
 import Foundation
 
 enum GameSettings {
-    private static let levelKey = "bashteroids.lastPlayedLevel"
-    private static let modeKey  = "bashteroids.lastMode"
+    private static let levelKey   = "bashteroids.lastPlayedLevel"
+    private static let modeKey    = "bashteroids.lastMode"
+    private static let densityKey = "bashteroids.lastPowerUpDensity"
 
     static var lastPlayedLevel: Int {
         get {
@@ -19,5 +20,14 @@ enum GameSettings {
             return mode
         }
         set { UserDefaults.standard.set(newValue.rawValue, forKey: modeKey) }
+    }
+
+    static var lastPowerUpDensity: PowerUpDensity {
+        get {
+            guard let raw = UserDefaults.standard.string(forKey: densityKey),
+                  let value = PowerUpDensity(rawValue: raw) else { return .normal }
+            return value
+        }
+        set { UserDefaults.standard.set(newValue.rawValue, forKey: densityKey) }
     }
 }

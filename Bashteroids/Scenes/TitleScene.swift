@@ -20,18 +20,23 @@ final class TitleScene: SKScene {
     private var slotAWasPressed: [Int: Bool] = [:]
     private var selectedLevel: Int = GameSettings.lastPlayedLevel
     private var selectedMode: GameMode = GameSettings.lastMode
+    private var selectedDensity: PowerUpDensity = GameSettings.lastPowerUpDensity
 
-    private enum FocusItem: CaseIterable { case mode, level, help }
+    private enum FocusItem: CaseIterable { case mode, level, density, help }
     private var focused: FocusItem = .level
 
     private var modeLabel: SKLabelNode!
     private var levelLabel: SKLabelNode!
+    private var densityLabel: SKLabelNode!
+    private var densityCaption: SKLabelNode!
     private var battleHintLabel: SKLabelNode!
     private var helpLabel: SKLabelNode!
     private var modeLeftArrow: SKLabelNode!
     private var modeRightArrow: SKLabelNode!
     private var levelLeftArrow: SKLabelNode!
     private var levelRightArrow: SKLabelNode!
+    private var densityLeftArrow: SKLabelNode!
+    private var densityRightArrow: SKLabelNode!
     private var dpadEdge: [ObjectIdentifier: (left: Bool, right: Bool, up: Bool, down: Bool)] = [:]
     private var titleTapObserver: NSObjectProtocol?
 
@@ -133,7 +138,9 @@ final class TitleScene: SKScene {
         let selectorCenterX = selectorRightX - 12 - arrowGap - valueHalfWidth   // center of the value label
         let modeY  = topAnchorY
         let levelY = topAnchorY - 50
-        let battleHintY = levelY - 50
+        let densityY = levelY - 50
+        let densityCaptionY = densityY - 28
+        let battleHintY = densityCaptionY - 30
 
         let modeLeft = SKLabelNode(text: "<")
         modeLeft.fontName = "AvenirNext-Regular"
@@ -190,6 +197,43 @@ final class TitleScene: SKScene {
         level.position = CGPoint(x: selectorCenterX, y: levelY)
         addChild(level)
         self.levelLabel = level
+
+        let densityLeft = SKLabelNode(text: "<")
+        densityLeft.fontName = "AvenirNext-Regular"
+        densityLeft.fontSize = 22
+        densityLeft.fontColor = TitleScene.accentGold
+        densityLeft.verticalAlignmentMode = .top
+        densityLeft.horizontalAlignmentMode = .right
+        densityLeft.position = CGPoint(x: selectorCenterX - valueHalfWidth - arrowGap, y: densityY)
+        addChild(densityLeft)
+        self.densityLeftArrow = densityLeft
+
+        let densityRight = SKLabelNode(text: ">")
+        densityRight.fontName = "AvenirNext-Regular"
+        densityRight.fontSize = 22
+        densityRight.fontColor = TitleScene.accentGold
+        densityRight.verticalAlignmentMode = .top
+        densityRight.horizontalAlignmentMode = .right
+        densityRight.position = CGPoint(x: selectorRightX, y: densityY)
+        addChild(densityRight)
+        self.densityRightArrow = densityRight
+
+        let densityValue = SKLabelNode(text: "")
+        densityValue.fontName = "AvenirNext-Bold"
+        densityValue.fontSize = 26
+        densityValue.verticalAlignmentMode = .top
+        densityValue.position = CGPoint(x: selectorCenterX, y: densityY)
+        addChild(densityValue)
+        self.densityLabel = densityValue
+
+        let densityCap = SKLabelNode(text: "POWERUPS")
+        densityCap.fontName = "AvenirNext-Regular"
+        densityCap.fontSize = 12
+        densityCap.fontColor = SKColor(white: 0.55, alpha: 1)
+        densityCap.verticalAlignmentMode = .top
+        densityCap.position = CGPoint(x: selectorCenterX, y: densityCaptionY)
+        addChild(densityCap)
+        self.densityCaption = densityCap
 
         let battleHint = SKLabelNode(text: "BATTLE NEEDS 2+ PLAYERS")
         battleHint.fontName = "AvenirNext-Regular"
@@ -287,7 +331,9 @@ final class TitleScene: SKScene {
         transitioning = true
         GameSettings.lastPlayedLevel = selectedLevel
         GameSettings.lastMode = selectedMode
-        let next = GameScene(size: size, level: selectedLevel, mode: selectedMode)
+        GameSettings.lastPowerUpDensity = selectedDensity
+        let next = GameScene(size: size, level: selectedLevel, mode: selectedMode,
+                             density: selectedDensity)
         next.scaleMode = scaleMode
         view?.presentScene(next, transition: .fade(withDuration: 0.4))
     }
@@ -701,12 +747,17 @@ final class TitleScene: SKScene {
         levelLabel.text = "LEVEL \(selectedLevel)"
         levelLabel.fontColor = focused == .level ? active : inactive
 
+        densityLabel.text = selectedDensity.label
+        densityLabel.fontColor = focused == .density ? active : inactive
+
         helpLabel.fontColor = focused == .help ? active : inactive
 
-        modeLeftArrow.fontColor   = focused == .mode  ? active : inactive
-        modeRightArrow.fontColor  = focused == .mode  ? active : inactive
-        levelLeftArrow.fontColor  = focused == .level ? active : inactive
-        levelRightArrow.fontColor = focused == .level ? active : inactive
+        modeLeftArrow.fontColor    = focused == .mode    ? active : inactive
+        modeRightArrow.fontColor   = focused == .mode    ? active : inactive
+        levelLeftArrow.fontColor   = focused == .level   ? active : inactive
+        levelRightArrow.fontColor  = focused == .level   ? active : inactive
+        densityLeftArrow.fontColor = focused == .density ? active : inactive
+        densityRightArrow.fontColor = focused == .density ? active : inactive
 
         // Hint stays hidden by default; flashBattleHint() shows it briefly
         // when the player tries to start BATTLE without enough slots claimed.
@@ -747,9 +798,10 @@ final class TitleScene: SKScene {
 
     private func cycleFocusedHorizontal(by delta: Int) {
         switch focused {
-        case .mode:  cycleMode(by: delta)
-        case .level: cycleLevel(by: delta)
-        case .help:  break
+        case .mode:    cycleMode(by: delta)
+        case .level:   cycleLevel(by: delta)
+        case .density: cycleDensity(by: delta)
+        case .help:    break
         }
     }
 
@@ -765,9 +817,20 @@ final class TitleScene: SKScene {
 
     private func confirmFocused() {
         switch focused {
-        case .mode:  cycleMode(by: 1)
-        case .level: cycleLevel(by: 1)
-        case .help:  openHelp()
+        case .mode:    cycleMode(by: 1)
+        case .level:   cycleLevel(by: 1)
+        case .density: cycleDensity(by: 1)
+        case .help:    openHelp()
+        }
+    }
+
+    private func cycleDensity(by delta: Int) {
+        let cases = PowerUpDensity.allCases
+        guard let i = cases.firstIndex(of: selectedDensity) else { return }
+        let next = max(0, min(cases.count - 1, i + delta))
+        if next != i {
+            selectedDensity = cases[next]
+            renderSelectors()
         }
     }
 

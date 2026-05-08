@@ -32,6 +32,7 @@ final class GameScene: SKScene {
     // Level state machine.
     private enum LevelState { case transitioning, spawning }
     let mode: GameMode
+    let density: PowerUpDensity
     private var currentLevel: Int = 1
     private var levelState: LevelState = .transitioning
     private var transitionTime: TimeInterval = 0
@@ -52,8 +53,9 @@ final class GameScene: SKScene {
     private var safeInsetLeft:   CGFloat { view?.safeAreaInsets.left   ?? 0 }
     private var safeInsetRight:  CGFloat { view?.safeAreaInsets.right  ?? 0 }
 
-    init(size: CGSize, level: Int, mode: GameMode) {
+    init(size: CGSize, level: Int, mode: GameMode, density: PowerUpDensity) {
         self.mode = mode
+        self.density = density
         super.init(size: size)
         self.currentLevel = max(1, min(9, level))
     }
@@ -77,6 +79,7 @@ final class GameScene: SKScene {
         GameSettings.lastPlayedLevel = currentLevel
         spawner = Spawner(bounds: playBounds, glowParent: self)
         spawner.mode = mode
+        spawner.density = density
 
         if mode == .battle {
             generateBattleWalls()

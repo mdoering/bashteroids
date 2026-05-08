@@ -25,6 +25,7 @@ final class Spawner {
 
     var bounds: CGRect
     var mode: GameMode = .survival
+    var density: PowerUpDensity = .normal
     private var nextBattlePowerUpTime: TimeInterval?
 
     private weak var glowParent: SKNode?
@@ -70,8 +71,15 @@ final class Spawner {
 
         if mode == .battle {
             // BATTLE mode runs on its own powerup drip schedule (see
-            // updateBattlePowerUps). No enemies queued.
-            nextBattlePowerUpTime = TimeInterval(rng.cgFloat(in: 30...60))
+            // updateBattlePowerUps). No enemies queued. .none density
+            // disables drip entirely; otherwise the base 30–60s window is
+            // divided by the multiplier.
+            if density == .none {
+                nextBattlePowerUpTime = nil
+            } else {
+                let base = TimeInterval(rng.cgFloat(in: 30...60))
+                nextBattlePowerUpTime = base / density.multiplier
+            }
             elapsed = 0
             timeToNextSpawn = .infinity
             return
@@ -83,7 +91,7 @@ final class Spawner {
         append(.mine,     count: config.mines)
         append(.rock,     count: config.rocks)
         append(.snake,    count: config.snakes)
-        append(.powerUp,  count: config.powerUps)
+        append(.powerUp,  count: scaledPowerUpCount(config.powerUps))
         queue.shuffle(using: &rng)
 
         elapsed = 0
@@ -92,6 +100,11 @@ final class Spawner {
 
     /// True if there are entities still queued or mid-warning.
     var hasMoreSpawns: Bool { !queue.isEmpty || !pending.isEmpty }
+
+    private func scaledPowerUpCount(_ base: Int) -> Int {
+        guard density != .none else { return 0 }
+        return Int((Double(base) * density.multiplier).rounded())
+    }
 
     func update(dt: TimeInterval) -> [Spawn] {
         elapsed += dt
@@ -314,7 +327,8 @@ final class Spawner {
         }
 
         let position = randomOpenSpotForPowerUp(walls: walls, rng: &rng)
-        nextBattlePowerUpTime = elapsed + TimeInterval(rng.cgFloat(in: 30...60))
+        let baseInterval = TimeInterval(rng.cgFloat(in: 30...60))
+        nextBattlePowerUpTime = elapsed + baseInterval / density.multiplier
 
         return Spawn(kind: .powerUp(kind: chosen, speed: 0, lifetime: 30),
                      position: position,
