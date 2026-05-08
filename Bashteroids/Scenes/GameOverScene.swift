@@ -58,13 +58,8 @@ final class GameOverScene: SKScene {
         // so the game-over screen is silent.
         AudioEngine.shared.stopAllThrust()
 
-        let levelL = SKLabelNode(text: "LEVEL \(level)")
-        levelL.fontName = "AvenirNext-Regular"
-        levelL.fontSize = 18
-        levelL.fontColor = SKColor(white: 0.65, alpha: 1)
-        levelL.position = CGPoint(x: size.width / 2, y: size.height * 0.49)
-        addChild(levelL)
-
+        let gold = SKColor(red: 245/255, green: 194/255, blue: 66/255, alpha: 1)
+        let levelY: CGFloat   // placed under the score for survival, under the ship icon for battle
         switch result {
         case .survivalEnd(let lastName, let lastColor, let baseScore, let density, let playerCount):
             renderBanner(text: "GAME OVER", color: .white)
@@ -77,10 +72,12 @@ final class GameOverScene: SKScene {
             let scoreL = SKLabelNode(text: scoreText(initialScore, isTeam: isTeam))
             scoreL.fontName = "AvenirNext-Bold"
             scoreL.fontSize = 32
-            scoreL.fontColor = SKColor(red: 245/255, green: 194/255, blue: 66/255, alpha: 1)
+            scoreL.fontColor = gold
             scoreL.position = CGPoint(x: size.width / 2, y: size.height * 0.45)
             addChild(scoreL)
             self.scoreLabel = scoreL
+
+            levelY = 0.41
 
             if density != .normal {
                 // Highscore-leaderboard cyan, matching the title's
@@ -90,7 +87,7 @@ final class GameOverScene: SKScene {
                 dl.fontName = "AvenirNext-Bold"
                 dl.fontSize = 20
                 dl.fontColor = highscoreBlue
-                dl.position = CGPoint(x: size.width / 2, y: size.height * 0.40)
+                dl.position = CGPoint(x: size.width / 2, y: size.height * 0.36)
                 addChild(dl)
                 self.densityLabel = dl
 
@@ -105,7 +102,7 @@ final class GameOverScene: SKScene {
                 footer.fontName = "AvenirNext-Regular"
                 footer.fontSize = 22
                 footer.fontColor = lastColor
-                let footerY: CGFloat = density == .normal ? 0.39 : 0.35
+                let footerY: CGFloat = density == .normal ? 0.36 : 0.31
                 footer.position = CGPoint(x: size.width / 2, y: size.height * footerY)
                 addChild(footer)
             }
@@ -115,6 +112,7 @@ final class GameOverScene: SKScene {
             ship.position = CGPoint(x: size.width / 2, y: size.height * 0.42)
             ship.zRotation = .pi / 2
             addChild(ship)
+            levelY = 0.34
         case .battleDraw:
             renderBanner(text: "DRAW", color: .white)
             let leftShip = Shapes.shipV(color: SKColor(white: 0.6, alpha: 1), scale: 2.0)
@@ -125,13 +123,21 @@ final class GameOverScene: SKScene {
             rightShip.position = CGPoint(x: size.width / 2 + 28, y: size.height * 0.42)
             rightShip.zRotation = .pi - .pi / 4
             addChild(rightShip)
+            levelY = 0.34
         }
+
+        let levelL = SKLabelNode(text: "LEVEL \(level)")
+        levelL.fontName = "AvenirNext-Regular"
+        levelL.fontSize = 22
+        levelL.fontColor = gold
+        levelL.position = CGPoint(x: size.width / 2, y: size.height * levelY)
+        addChild(levelL)
 
         let hint = SKLabelNode(text: "[R / X / ▶❙❙] PLAY AGAIN  ·  [SPACE] TITLE")
         hint.fontName = "AvenirNext-Regular"
-        hint.fontSize = 14
-        hint.fontColor = SKColor(white: 0.45, alpha: 1)
-        hint.position = CGPoint(x: size.width / 2, y: size.height * 0.07)
+        hint.fontSize = 18
+        hint.fontColor = SKColor(white: 0.55, alpha: 1)
+        hint.position = CGPoint(x: size.width / 2, y: size.height * 0.04)
         addChild(hint)
 
         KeyboardManager.shared.onKeyDown = { [weak self] code in
