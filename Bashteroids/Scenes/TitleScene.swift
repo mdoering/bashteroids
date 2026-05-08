@@ -366,13 +366,11 @@ final class TitleScene: SKScene {
             NotificationCenter.default.removeObserver(obs)
             titleLongPressObserver = nil
         }
-        TouchOverlayState.shared.setScene(.other)
-        // Music is NOT stopped here — willMove(from:) on the old scene fires
-        // *after* didMove(to:) on the new scene in SpriteKit transitions, so
-        // stopping here would clobber the next scene's just-started track.
-        // Each scene's didMove is responsible for setting the desired audio
-        // state (TitleScene plays rivers, HelpScene plays help, GameScene
-        // stops music outright).
+        // Neither scene state nor music is mutated here — willMove(from:)
+        // on the old scene fires *after* didMove(to:) on the new scene in
+        // SpriteKit transitions, so changing global state here clobbers the
+        // next scene's setup. Each scene's didMove(to:) is responsible for
+        // its own audio + overlay state.
     }
 
     /// Hit-test the title-scene's interactive elements against a SwiftUI-

@@ -82,6 +82,32 @@ private struct HoldButton: View {
     }
 }
 
+/// Transparent full-screen tap catcher for the game-over scene. Forwards
+/// every tap (in SpriteKit scene coordinates) to GameOverScene via the
+/// .gameOverSceneTap notification.
+struct GameOverTapCatcher: View {
+    var body: some View {
+        GeometryReader { proxy in
+            Color.clear
+                .contentShape(Rectangle())
+                .gesture(
+                    DragGesture(minimumDistance: 0)
+                        .onEnded { value in
+                            let scenePoint = CGPoint(
+                                x: value.location.x,
+                                y: proxy.size.height - value.location.y
+                            )
+                            NotificationCenter.default.post(
+                                name: .gameOverSceneTap,
+                                object: nil,
+                                userInfo: ["location": scenePoint]
+                            )
+                        }
+                )
+        }
+    }
+}
+
 /// Transparent full-screen tap catcher for the title scene. Forwards each
 /// gesture's location (in SpriteKit scene coordinates) to TitleScene via
 /// NotificationCenter — short presses claim a slot, long presses (≥0.5 s)

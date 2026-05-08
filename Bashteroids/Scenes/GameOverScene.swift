@@ -25,9 +25,11 @@ final class GameOverScene: SKScene {
 
     private var scoreLabel: SKLabelNode?
     private var densityLabel: SKLabelNode?
+    private var hintLabel: SKLabelNode?
     private var revealedBaseScore: Int = 0
     private var revealedFinalScore: Int = 0
     private var revealedPlayerCountIsTeam: Bool = false
+    private var tapObserver: NSObjectProtocol?
 
     init(size: CGSize, result: Result, level: Int, mode: GameMode, density: PowerUpDensity) {
         self.result = result
@@ -52,6 +54,8 @@ final class GameOverScene: SKScene {
 
     override func didMove(to view: SKView) {
         backgroundColor = .black
+
+        TouchOverlayState.shared.setScene(.gameOver)
 
         // Defensive: GameScene.willMove already stops thrust audio, but if
         // any thrust loop survived the transition we silence it again here
@@ -139,9 +143,38 @@ final class GameOverScene: SKScene {
         hint.fontColor = SKColor(white: 0.55, alpha: 1)
         hint.position = CGPoint(x: size.width / 2, y: size.height * 0.04)
         addChild(hint)
+        self.hintLabel = hint
 
         KeyboardManager.shared.onKeyDown = { [weak self] code in
             self?.handleKeyDown(code)
+        }
+        tapObserver = NotificationCenter.default.addObserver(
+            forName: .gameOverSceneTap, object: nil, queue: .main
+        ) { [weak self] note in
+            guard let self,
+                  let location = note.userInfo?["location"] as? CGPoint else { return }
+            MainActor.assumeIsolated { self.handleTouchTap(at: location) }
+        }
+    }
+
+    override func willMove(from view: SKView) {
+        if let obs = tapObserver {
+            NotificationCenter.default.removeObserver(obs)
+            tapObserver = nil
+        }
+        // Scene state is NOT mutated here; the next scene's didMove(to:)
+        // sets the correct value.
+    }
+
+    /// Tap on the play-again hint replays; tap anywhere else dismisses
+    /// (or runs the score-reveal animation if it hasn't played yet).
+    private func handleTouchTap(at point: CGPoint) {
+        let hitPad: CGFloat = 16
+        if let hint = hintLabel,
+           hint.frame.insetBy(dx: -hitPad, dy: -hitPad).contains(point) {
+            handleReplayPress()
+        } else {
+            handleDismissPress()
         }
     }
 

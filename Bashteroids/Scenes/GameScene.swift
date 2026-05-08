@@ -76,6 +76,10 @@ final class GameScene: SKScene {
     override func didMove(to view: SKView) {
         backgroundColor = .black
         TouchOverlayState.shared.setScene(.game)
+        // Reset on entry so a touch button left "pressed" by a finger that
+        // released during the scene-transition fade doesn't auto-thrust the
+        // ship at game start.
+        TouchInputState.shared.releaseAll()
         MusicPlayer.shared.stop()   // gameplay scenes are silent (SFX only)
         GameSettings.lastPlayedLevel = currentLevel
         spawner = Spawner(bounds: playBounds, glowParent: self)
@@ -115,7 +119,9 @@ final class GameScene: SKScene {
         audio.stopAllThrust()
         manager.keyboardInput.releaseAll()
         TouchInputState.shared.releaseAll()
-        TouchOverlayState.shared.setScene(.other)
+        // Scene state is NOT mutated here — the next scene's didMove(to:)
+        // sets the correct value (and willMove fires *after* that didMove,
+        // so changing it here would clobber the new state).
     }
 
     private func handleKeyDown(_ code: GCKeyCode) {

@@ -9,7 +9,7 @@ import Foundation
 final class TouchOverlayState: ObservableObject {
     static let shared = TouchOverlayState()
 
-    enum Scene { case title, game, other }
+    enum Scene { case title, game, gameOver, other }
 
     @Published private(set) var scene: Scene = .other
     @Published private(set) var hasTouchSlot: Bool = false
@@ -19,6 +19,8 @@ final class TouchOverlayState: ObservableObject {
     var inGameHUDVisible: Bool { scene == .game && hasTouchSlot }
     /// `true` when the title-screen tap-catcher should be active.
     var titleTapActive: Bool { scene == .title }
+    /// `true` when the game-over tap-catcher should be active.
+    var gameOverTapActive: Bool { scene == .gameOver }
 
     func setScene(_ scene: Scene) {
         if self.scene != scene { self.scene = scene }
@@ -41,4 +43,7 @@ extension Notification.Name {
     /// Posted by the SwiftUI title overlay when the user holds (≥0.5 s)
     /// inside the SpriteView area. Same `userInfo` shape as titleSceneTap.
     static let titleSceneLongPress = Notification.Name("TitleSceneLongPress")
+
+    /// Posted by the SwiftUI game-over overlay on tap. Same userInfo shape.
+    static let gameOverSceneTap = Notification.Name("GameOverSceneTap")
 }

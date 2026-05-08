@@ -18,6 +18,7 @@ final class HelpScene: SKScene {
     override func didMove(to view: SKView) {
         backgroundColor = .black
 
+        TouchOverlayState.shared.setScene(.other)
         MusicPlayer.shared.play(resource: "help", ext: "m4a")
 
         let bgTexture = SKTexture(imageNamed: "HelpBackground")
