@@ -264,16 +264,25 @@ final class TitleScene: SKScene {
             let currentIndices = Set(self.manager.slots.map { $0.index })
             let newlyAdded = currentIndices.subtracting(self.prevClaimedIndices).sorted()
             if let idx = newlyAdded.first {
-                let current = UserDefaults.standard.string(
-                    forKey: "player_name_\(idx)") ?? "P\(idx + 1)"
-                #if os(tvOS)
-                self.beginCoordinatorNameEntry(slot: idx, current: current)
-                #else
-                self.activeNameSlot = idx
-                self.nameBuffer = current
-                self.nameSuggestionIndex = -1
-                self.manager.setJoinEnabled(false)
-                #endif
+                let newSlot = self.manager.slots.first(where: { $0.index == idx })
+                // Touch players skip the editor — they have no keyboard to
+                // type with and the inline editor would block game start.
+                // They get the slot's last-stored name (or "P\(idx+1)" on
+                // first launch); a name editor flow for touch players is
+                // a follow-up.
+                let isTouchSlot = newSlot?.touchInput != nil
+                if !isTouchSlot {
+                    let current = UserDefaults.standard.string(
+                        forKey: "player_name_\(idx)") ?? "P\(idx + 1)"
+                    #if os(tvOS)
+                    self.beginCoordinatorNameEntry(slot: idx, current: current)
+                    #else
+                    self.activeNameSlot = idx
+                    self.nameBuffer = current
+                    self.nameSuggestionIndex = -1
+                    self.manager.setJoinEnabled(false)
+                    #endif
+                }
             }
             self.prevClaimedIndices = currentIndices
             self.renderSlots()
