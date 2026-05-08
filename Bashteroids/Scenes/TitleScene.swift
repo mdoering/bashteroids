@@ -21,8 +21,9 @@ final class TitleScene: SKScene {
     private var selectedLevel: Int = GameSettings.lastPlayedLevel
     private var selectedMode: GameMode = GameSettings.lastMode
     private var selectedDensity: PowerUpDensity = GameSettings.sessionPowerUpDensity
+    private var selectedAudio: AudioMode = GameSettings.audioMode
 
-    private enum FocusItem: CaseIterable { case mode, level, density, help }
+    private enum FocusItem: CaseIterable { case mode, level, density, help, audio }
     private var focused: FocusItem = .mode
 
     private var modeLabel: SKLabelNode!
@@ -38,6 +39,10 @@ final class TitleScene: SKScene {
     private var joinHintLabel: SKLabelNode!
     private var densityLeftArrow: SKLabelNode!
     private var densityRightArrow: SKLabelNode!
+    private var audioLabel: SKLabelNode!
+    private var audioCaption: SKLabelNode!
+    private var audioLeftArrow: SKLabelNode!
+    private var audioRightArrow: SKLabelNode!
     private var dpadEdge: [ObjectIdentifier: (left: Bool, right: Bool, up: Bool, down: Bool)] = [:]
     private var titleTapObserver: NSObjectProtocol?
     private var titleLongPressObserver: NSObjectProtocol?
@@ -264,6 +269,49 @@ final class TitleScene: SKScene {
         helpL.position = CGPoint(x: size.width - 30, y: 30)
         addChild(helpL)
         self.helpLabel = helpL
+
+        // Audio selector — lower-left corner, mirroring the right-side
+        // selectors but anchored to the left edge.
+        let audioY = size.height * 0.10
+        let audioSelectorLeftX = edgeMargin
+        let audioSelectorCenterX = audioSelectorLeftX + 12 + arrowGap + valueHalfWidth
+
+        let audioLeft = SKLabelNode(text: "<")
+        audioLeft.fontName = "AvenirNext-Regular"
+        audioLeft.fontSize = 22
+        audioLeft.fontColor = TitleScene.accentGold
+        audioLeft.verticalAlignmentMode = .top
+        audioLeft.horizontalAlignmentMode = .left
+        audioLeft.position = CGPoint(x: audioSelectorLeftX, y: audioY)
+        addChild(audioLeft)
+        self.audioLeftArrow = audioLeft
+
+        let audioRight = SKLabelNode(text: ">")
+        audioRight.fontName = "AvenirNext-Regular"
+        audioRight.fontSize = 22
+        audioRight.fontColor = TitleScene.accentGold
+        audioRight.verticalAlignmentMode = .top
+        audioRight.horizontalAlignmentMode = .left
+        audioRight.position = CGPoint(x: audioSelectorCenterX + valueHalfWidth + arrowGap, y: audioY)
+        addChild(audioRight)
+        self.audioRightArrow = audioRight
+
+        let audioValue = SKLabelNode(text: "")
+        audioValue.fontName = "AvenirNext-Bold"
+        audioValue.fontSize = 26
+        audioValue.verticalAlignmentMode = .top
+        audioValue.position = CGPoint(x: audioSelectorCenterX, y: audioY)
+        addChild(audioValue)
+        self.audioLabel = audioValue
+
+        let audioCap = SKLabelNode(text: "AUDIO")
+        audioCap.fontName = "AvenirNext-Regular"
+        audioCap.fontSize = 12
+        audioCap.fontColor = SKColor(white: 0.55, alpha: 1)
+        audioCap.verticalAlignmentMode = .top
+        audioCap.position = CGPoint(x: audioSelectorCenterX, y: audioY - 28)
+        addChild(audioCap)
+        self.audioCaption = audioCap
 
         renderSelectors()
 
@@ -805,14 +853,19 @@ final class TitleScene: SKScene {
         densityLabel.text = selectedDensity.label
         densityLabel.fontColor = focused == .density ? active : inactive
 
+        audioLabel.text = selectedAudio.label
+        audioLabel.fontColor = focused == .audio ? active : inactive
+
         helpLabel.fontColor = focused == .help ? active : inactive
 
-        modeLeftArrow.fontColor    = focused == .mode    ? active : inactive
-        modeRightArrow.fontColor   = focused == .mode    ? active : inactive
-        levelLeftArrow.fontColor   = focused == .level   ? active : inactive
-        levelRightArrow.fontColor  = focused == .level   ? active : inactive
-        densityLeftArrow.fontColor = focused == .density ? active : inactive
+        modeLeftArrow.fontColor     = focused == .mode    ? active : inactive
+        modeRightArrow.fontColor    = focused == .mode    ? active : inactive
+        levelLeftArrow.fontColor    = focused == .level   ? active : inactive
+        levelRightArrow.fontColor   = focused == .level   ? active : inactive
+        densityLeftArrow.fontColor  = focused == .density ? active : inactive
         densityRightArrow.fontColor = focused == .density ? active : inactive
+        audioLeftArrow.fontColor    = focused == .audio   ? active : inactive
+        audioRightArrow.fontColor   = focused == .audio   ? active : inactive
 
         // Hint stays hidden by default; flashBattleHint() shows it briefly
         // when the player tries to start BATTLE without enough slots claimed.
@@ -872,6 +925,7 @@ final class TitleScene: SKScene {
         case .mode:    cycleMode(by: delta)
         case .level:   cycleLevel(by: delta)
         case .density: cycleDensity(by: delta)
+        case .audio:   cycleAudio(by: delta)
         case .help:    break
         }
     }
@@ -891,7 +945,26 @@ final class TitleScene: SKScene {
         case .mode:    cycleMode(by: 1)
         case .level:   cycleLevel(by: 1)
         case .density: cycleDensity(by: 1)
+        case .audio:   cycleAudio(by: 1)
         case .help:    openHelp()
+        }
+    }
+
+    private func cycleAudio(by delta: Int) {
+        let cases = AudioMode.allCases
+        guard let i = cases.firstIndex(of: selectedAudio) else { return }
+        let next = max(0, min(cases.count - 1, i + delta))
+        if next != i {
+            selectedAudio = cases[next]
+            GameSettings.audioMode = selectedAudio
+            // React immediately: switch the title music on/off so the
+            // selector feels live.
+            if selectedAudio == .music {
+                MusicPlayer.shared.play(resource: "rivers", ext: "m4a", volume: 0.6)
+            } else {
+                MusicPlayer.shared.stop()
+            }
+            renderSelectors()
         }
     }
 

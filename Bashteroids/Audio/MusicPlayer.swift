@@ -19,6 +19,10 @@ final class MusicPlayer {
     /// the source-file level; the source files are pre-baked at the gain
     /// the designer wants.
     func play(resource: String, ext: String, volume: Float = 1.0) {
+        guard GameSettings.audioMode == .music else {
+            stop()
+            return
+        }
         if currentResource == resource, player?.isPlaying == true {
             return
         }

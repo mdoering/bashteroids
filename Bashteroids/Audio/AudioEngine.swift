@@ -32,21 +32,25 @@ final class AudioEngine {
     // MARK: - Public API
 
     func playShoot() {
+        guard GameSettings.audioMode != .silence else { return }
         playOneshot(shootBuffer, gain: 0.85)
     }
 
     func playExplosion() {
+        guard GameSettings.audioMode != .silence else { return }
         playOneshot(explosionBuffer, gain: 0.95)
     }
 
     func playDenial() {
+        guard GameSettings.audioMode != .silence else { return }
         playOneshot(denialBuffer, gain: 0.6)
     }
 
     func setThrust(playerIndex: Int, on: Bool) {
         guard thrustPool.indices.contains(playerIndex) else { return }
         let node = thrustPool[playerIndex]
-        if on {
+        let effectiveOn = on && GameSettings.audioMode != .silence
+        if effectiveOn {
             if !node.isPlaying {
                 node.scheduleBuffer(thrustLoopBuffer, at: nil, options: .loops, completionHandler: nil)
                 node.play()

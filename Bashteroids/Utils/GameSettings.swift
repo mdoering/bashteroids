@@ -3,6 +3,7 @@ import Foundation
 enum GameSettings {
     private static let levelKey   = "bashteroids.lastPlayedLevel"
     private static let modeKey    = "bashteroids.lastMode"
+    private static let audioKey   = "bashteroids.audioMode"
 
     static var lastPlayedLevel: Int {
         get {
@@ -25,4 +26,13 @@ enum GameSettings {
     /// at .normal, but cycling the selector during a session sticks across
     /// subsequent games until the app quits.
     static var sessionPowerUpDensity: PowerUpDensity = .normal
+
+    static var audioMode: AudioMode {
+        get {
+            guard let raw = UserDefaults.standard.string(forKey: audioKey),
+                  let value = AudioMode(rawValue: raw) else { return .music }
+            return value
+        }
+        set { UserDefaults.standard.set(newValue.rawValue, forKey: audioKey) }
+    }
 }
