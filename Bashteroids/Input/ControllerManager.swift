@@ -102,6 +102,15 @@ final class ControllerManager {
         onSlotsChanged?()
     }
 
+    /// Release the touch player's slot, if any. Used by the iPad
+    /// title-tap path: tapping the touch player's own slot leaves it.
+    func releaseTouchSlot() {
+        guard hasTouchPlayer else { return }
+        slots.removeAll { $0.touchInput != nil }
+        TouchOverlayState.shared.recompute()
+        onSlotsChanged?()
+    }
+
     /// Release a single controller's slot — used by the title scene's "leave
     /// slot" binding (B on extended controllers). The controller becomes
     /// joinable again immediately, with its preview marker parked on the

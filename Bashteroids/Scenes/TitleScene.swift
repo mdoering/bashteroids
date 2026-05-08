@@ -19,7 +19,6 @@ final class TitleScene: SKScene {
     private var nameSuggestionIndex: Int = -1
     private var prevClaimedIndices: Set<Int> = []
     private var slotAWasPressed: [Int: Bool] = [:]
-    private var lastSlotTapTime: [Int: TimeInterval] = [:]
     private var selectedLevel: Int = GameSettings.lastPlayedLevel
     private var selectedMode: GameMode = GameSettings.lastMode
     private var selectedDensity: PowerUpDensity = GameSettings.sessionPowerUpDensity
@@ -402,22 +401,13 @@ final class TitleScene: SKScene {
             return
         }
 
-        // Double-tap on a claimed touch slot opens the name editor — same
-        // result as long-press. Window: 0.5 s between successive taps on the
-        // same slot.
+        // Tapping the touch player's own slot leaves it. Long-press still
+        // opens the name editor (see handleTouchLongPress).
         if activeNameSlot == nil,
            let i = slotTileIndex(at: point),
            let slot = manager.slots.first(where: { $0.index == i }),
            slot.touchInput != nil {
-            let now = CACurrentMediaTime()
-            if let last = lastSlotTapTime[i], now - last < 0.5 {
-                lastSlotTapTime[i] = nil
-                let current = UserDefaults.standard.string(
-                    forKey: "player_name_\(i)") ?? "P\(i + 1)"
-                beginCoordinatorNameEntry(slot: i, current: current)
-                return
-            }
-            lastSlotTapTime[i] = now
+            manager.releaseTouchSlot()
             return
         }
 
@@ -1004,13 +994,15 @@ final class TitleScene: SKScene {
         battleHintLabel.run(pulse)
     }
 
-    /// Vertical navigation. Up/down hops between the slot row (top) and the
-    /// selector column (right side). Within the selector column, up/down moves
-    /// to the neighbouring item.
+    /// Vertical navigation.
+    /// - On a slot tile: down → start (the action), up → mode (the settings
+    ///   entry point).
+    /// - In the selector column: up/down moves through the list. Mode-up
+    ///   returns to the slot you came from; start-up → help.
     private func moveFocus(by delta: Int) {
         switch focused {
         case .slot0, .slot1, .slot2, .slot3:
-            if delta > 0 { focused = .mode }   // down enters the selector column
+            focused = (delta > 0) ? .start : .mode
         case .mode:
             if delta < 0 { focused = lastSlotFocus() }
             else { focused = .level }
@@ -1041,8 +1033,11 @@ final class TitleScene: SKScene {
         }
     }
 
-    /// Horizontal navigation. On the slot row, moves between slot tiles
-    /// (clamped — no wrap). On selectors, cycles the value.
+    /// Horizontal navigation.
+    /// - On the slot row: moves between slot tiles (clamped — no wrap).
+    /// - On a selector: right cycles the value (existing behaviour); left
+    ///   exits the column to the rightmost slot (P4).
+    /// - On help / start (no value to cycle): left → P4; right is a no-op.
     private func cycleFocusedHorizontal(by delta: Int) {
         switch focused {
         case .slot0:
@@ -1053,12 +1048,18 @@ final class TitleScene: SKScene {
             setSlotFocus(delta > 0 ? 3 : 1)
         case .slot3:
             if delta < 0 { setSlotFocus(2) }
-        case .mode:    cycleMode(by: delta)
-        case .level:   cycleLevel(by: delta)
-        case .density: cycleDensity(by: delta)
-        case .audio:   cycleAudio(by: delta)
-        case .start:   break
-        case .help:    break
+        case .mode:
+            if delta < 0 { setSlotFocus(3) } else { cycleMode(by: delta) }
+        case .level:
+            if delta < 0 { setSlotFocus(3) } else { cycleLevel(by: delta) }
+        case .density:
+            if delta < 0 { setSlotFocus(3) } else { cycleDensity(by: delta) }
+        case .audio:
+            if delta < 0 { setSlotFocus(3) } else { cycleAudio(by: delta) }
+        case .help:
+            if delta < 0 { setSlotFocus(3) }
+        case .start:
+            if delta < 0 { setSlotFocus(3) }
         }
     }
 
