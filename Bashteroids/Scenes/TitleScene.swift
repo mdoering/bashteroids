@@ -10,6 +10,7 @@ final class TitleScene: SKScene {
     private var menuWasPressed: [ObjectIdentifier: Bool] = [:]
     private var xWasPressed: [ObjectIdentifier: Bool] = [:]
     private var aWasPressed: [ObjectIdentifier: Bool] = [:]
+    private var bWasPressed: [ObjectIdentifier: Bool] = [:]
     private var activeNameSlot: Int? = nil
     private var nameBuffer: String = ""
     /// While name entry is active, which recent-names suggestion (0-based)
@@ -623,6 +624,19 @@ final class TitleScene: SKScene {
             let xWas = xWasPressed[id] ?? false
             if xPressed && !xWas { tryStart(); break }
             xWasPressed[id] = xPressed
+
+            // B button (extended controllers only — Siri Remote has no B):
+            // when this controller has claimed a slot, B releases it.
+            let bPressed = c.extendedGamepad?.buttonB.isPressed ?? false
+            let bWas = bWasPressed[id] ?? false
+            if bPressed && !bWas
+                && manager.slot(for: c) != nil
+                && !nameEntryActive {
+                manager.releaseSlot(for: c)
+                bWasPressed[id] = bPressed
+                break
+            }
+            bWasPressed[id] = bPressed
 
             // Claimed controllers: A = "confirm focused" (cycle / open help).
             // Unclaimed controllers' A is still handled by the join handler in

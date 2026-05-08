@@ -58,7 +58,7 @@ final class HelpScene: SKScene {
         // Top row: input controls. Bottom row: reference cards with icons.
         // 2-row vertical gap between the two rows.
         let topRowY = size.height * 0.78
-        let bottomRowY = topRowY - (30 + 8 * 22) - (2 * 22)
+        let bottomRowY = topRowY - (30 + 9 * 22) - (2 * 22)
 
         renderControllerSection(labelX: leftLabelX,  valueX: leftValueX,  topY: topRowY)
         renderKeyboardSection(  labelX: rightLabelX, valueX: rightValueX, topY: topRowY)
@@ -97,6 +97,7 @@ final class HelpScene: SKScene {
             ("Deploy",     "Y"),
             ("Join",       "A"),
             ("Edit name",  "A (claimed)"),
+            ("Leave slot", "B (claimed)"),
             ("Begin game", "Menu / X / Play-Pause")
         ] {
             addLeftRow(label: label, value: value, labelX: labelX, valueX: valueX, y: y)

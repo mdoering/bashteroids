@@ -101,6 +101,18 @@ final class ControllerManager {
         onSlotsChanged?()
     }
 
+    /// Release a single controller's slot — used by the title scene's "leave
+    /// slot" binding (B on extended controllers). The controller becomes
+    /// joinable again immediately.
+    func releaseSlot(for controller: GCController) {
+        guard slot(for: controller) != nil else { return }
+        slots.removeAll { $0.controller === controller }
+        intendedSlot.removeValue(forKey: ObjectIdentifier(controller))
+        installJoinHandler(controller)
+        TouchOverlayState.shared.recompute()
+        onSlotsChanged?()
+    }
+
     // MARK: - Notifications
 
     private func handleConnect(_ controller: GCController) {

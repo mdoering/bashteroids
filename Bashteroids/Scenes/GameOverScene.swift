@@ -180,13 +180,15 @@ final class GameOverScene: SKScene {
     }
 
     private func handleKeyDown(_ code: GCKeyCode) {
-        switch code {
-        case .keyR, .keyA, .spacebar, .returnOrEnter, .keypadEnter:
-            handleConfirmPress()
-        case .escape:
+        if revealState == .awaitingReveal {
+            playRevealAnimation()
+            revealState = .awaitingDismiss
+            return
+        }
+        if code == .keyR {
+            handleReplayPress()
+        } else {
             returnToTitle()
-        default:
-            break
         }
     }
 
