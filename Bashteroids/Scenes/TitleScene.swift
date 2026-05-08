@@ -571,7 +571,7 @@ final class TitleScene: SKScene {
             let was = slotAWasPressed[i] ?? false
             slotAWasPressed[i] = pressed
             if nameEntryActive, pressed && !was {
-                confirmName()
+                confirmNameApplyingSuggestion()
                 if let c = slot.controller {
                     aWasPressed[ObjectIdentifier(c)] = pressed
                 }
@@ -619,6 +619,12 @@ final class TitleScene: SKScene {
                    || curr.left != prev.left || curr.right != prev.right {
                     syncIntendedSlot(controller: c)
                 }
+            } else if manager.slot(for: c) != nil {
+                // While name entry is open, d-pad up/down on the editing
+                // player's controller cycles the recent-names suggestion
+                // list. A then commits the highlighted entry.
+                if curr.up   && !prev.up   { moveNameSuggestion(by: -1) }
+                if curr.down && !prev.down { moveNameSuggestion(by:  1) }
             }
             dpadEdge[id] = curr
 
@@ -676,27 +682,15 @@ final class TitleScene: SKScene {
         if activeNameSlot != nil {
             switch code {
             case .returnOrEnter, .keypadEnter:
-                let suggestions = Array(RecentNames.all.prefix(4))
-                if nameSuggestionIndex >= 0, nameSuggestionIndex < suggestions.count {
-                    nameBuffer = suggestions[nameSuggestionIndex]
-                }
-                confirmName()
+                confirmNameApplyingSuggestion()
             case .deleteOrBackspace:
                 if !nameBuffer.isEmpty { nameBuffer.removeLast() }
                 nameSuggestionIndex = -1
                 renderSlots()
             case .upArrow:
-                let count = min(4, RecentNames.all.count)
-                guard count > 0 else { break }
-                nameSuggestionIndex = max(0, (nameSuggestionIndex < 0 ? 0 : nameSuggestionIndex - 1))
-                renderSlots()
+                moveNameSuggestion(by: -1)
             case .downArrow:
-                let count = min(4, RecentNames.all.count)
-                guard count > 0 else { break }
-                nameSuggestionIndex = nameSuggestionIndex < 0
-                    ? 0
-                    : min(count - 1, nameSuggestionIndex + 1)
-                renderSlots()
+                moveNameSuggestion(by: 1)
             default:
                 if let ch = TitleScene.charFor(keyCode: code), nameBuffer.count < 8 {
                     nameBuffer.append(ch)
@@ -796,6 +790,31 @@ final class TitleScene: SKScene {
         nameSuggestionIndex = -1
         let atMax = manager.slots.count >= ControllerManager.maxPlayers
         manager.setJoinEnabled(!atMax)
+        renderSlots()
+    }
+
+    /// Confirm shortcut that first applies a highlighted recent-names
+    /// suggestion (if any) into nameBuffer, then commits. Used by both
+    /// keyboard (Enter) and controller (A) confirm paths so navigating
+    /// the suggestion list and pressing A picks that name.
+    private func confirmNameApplyingSuggestion() {
+        let suggestions = Array(RecentNames.all.prefix(4))
+        if nameSuggestionIndex >= 0, nameSuggestionIndex < suggestions.count {
+            nameBuffer = suggestions[nameSuggestionIndex]
+        }
+        confirmName()
+    }
+
+    /// Cycle the highlighted suggestion (-1 = no highlight, 0..3 = indexed).
+    /// First navigation from -1 lands on 0 regardless of direction.
+    private func moveNameSuggestion(by delta: Int) {
+        let count = min(4, RecentNames.all.count)
+        guard count > 0 else { return }
+        if nameSuggestionIndex < 0 {
+            nameSuggestionIndex = 0
+        } else {
+            nameSuggestionIndex = max(0, min(count - 1, nameSuggestionIndex + delta))
+        }
         renderSlots()
     }
 
