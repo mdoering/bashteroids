@@ -27,7 +27,7 @@ struct GameContainerView: View {
             }
             #endif
 
-            #if os(tvOS)
+            #if os(tvOS) || os(iOS)
             if nameEntry.request != nil {
                 NameEntryOverlay(coordinator: nameEntry)
             }

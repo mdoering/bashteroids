@@ -83,23 +83,33 @@ private struct HoldButton: View {
 }
 
 /// Transparent full-screen tap catcher for the title scene. Forwards each
-/// tap's location (in SpriteKit scene coordinates) to TitleScene via
-/// NotificationCenter, where it hit-tests against the slot tile rects to
-/// claim a touch slot.
+/// gesture's location (in SpriteKit scene coordinates) to TitleScene via
+/// NotificationCenter — short presses claim a slot, long presses (≥0.5 s)
+/// open the name editor for an already-claimed touch slot.
 struct TitleTapCatcher: View {
+    @State private var pressStart: Date?
+
     var body: some View {
         GeometryReader { proxy in
             Color.clear
                 .contentShape(Rectangle())
                 .gesture(
                     DragGesture(minimumDistance: 0)
+                        .onChanged { _ in
+                            if pressStart == nil { pressStart = Date() }
+                        }
                         .onEnded { value in
+                            let elapsed = pressStart.map { Date().timeIntervalSince($0) } ?? 0
+                            pressStart = nil
                             let scenePoint = CGPoint(
                                 x: value.location.x,
                                 y: proxy.size.height - value.location.y
                             )
+                            let name: Notification.Name = elapsed >= 0.5
+                                ? .titleSceneLongPress
+                                : .titleSceneTap
                             NotificationCenter.default.post(
-                                name: .titleSceneTap,
+                                name: name,
                                 object: nil,
                                 userInfo: ["location": scenePoint]
                             )

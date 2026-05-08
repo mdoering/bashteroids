@@ -39,6 +39,7 @@ final class TitleScene: SKScene {
     private var densityRightArrow: SKLabelNode!
     private var dpadEdge: [ObjectIdentifier: (left: Bool, right: Bool, up: Bool, down: Bool)] = [:]
     private var titleTapObserver: NSObjectProtocol?
+    private var titleLongPressObserver: NSObjectProtocol?
 
     override func didMove(to view: SKView) {
         backgroundColor = .black
@@ -50,6 +51,13 @@ final class TitleScene: SKScene {
             guard let self,
                   let location = note.userInfo?["location"] as? CGPoint else { return }
             MainActor.assumeIsolated { self.handleTouchTap(at: location) }
+        }
+        titleLongPressObserver = NotificationCenter.default.addObserver(
+            forName: .titleSceneLongPress, object: nil, queue: .main
+        ) { [weak self] note in
+            guard let self,
+                  let location = note.userInfo?["location"] as? CGPoint else { return }
+            MainActor.assumeIsolated { self.handleTouchLongPress(at: location) }
         }
 
         // Poster background — aspect-fill so the landscape image covers the
@@ -304,6 +312,10 @@ final class TitleScene: SKScene {
             NotificationCenter.default.removeObserver(obs)
             titleTapObserver = nil
         }
+        if let obs = titleLongPressObserver {
+            NotificationCenter.default.removeObserver(obs)
+            titleLongPressObserver = nil
+        }
         TouchOverlayState.shared.setScene(.other)
     }
 
@@ -312,6 +324,27 @@ final class TitleScene: SKScene {
     /// the touch player.
     private func handleTouchTap(at point: CGPoint) {
         guard !manager.hasTouchPlayer else { return }
+        if let i = slotTileIndex(at: point), manager.emptySlotIndices().contains(i) {
+            manager.claimTouch(atSlot: i)
+        }
+    }
+
+    /// Long-press on a claimed touch slot opens the SwiftUI name editor
+    /// overlay so the touch player can edit their name with the on-screen
+    /// keyboard. Long-presses elsewhere (empty tiles, off-tile area) are
+    /// no-ops.
+    private func handleTouchLongPress(at point: CGPoint) {
+        guard activeNameSlot == nil,
+              let i = slotTileIndex(at: point),
+              let slot = manager.slots.first(where: { $0.index == i }),
+              slot.touchInput != nil else { return }
+        let current = UserDefaults.standard.string(
+            forKey: "player_name_\(i)") ?? "P\(i + 1)"
+        beginCoordinatorNameEntry(slot: i, current: current)
+    }
+
+    /// Returns the slot tile index whose rect contains `point`, or nil.
+    private func slotTileIndex(at point: CGPoint) -> Int? {
         let count = ControllerManager.maxPlayers
         let tileWidth: CGFloat = 110
         let spacing: CGFloat = 24
@@ -322,13 +355,9 @@ final class TitleScene: SKScene {
             let cx = startX + CGFloat(i) * (tileWidth + spacing)
             let rect = CGRect(x: cx - tileWidth / 2, y: y - tileWidth / 2,
                               width: tileWidth, height: tileWidth)
-            if rect.contains(point) {
-                if manager.emptySlotIndices().contains(i) {
-                    manager.claimTouch(atSlot: i)
-                }
-                return
-            }
+            if rect.contains(point) { return i }
         }
+        return nil
     }
 
     private func tryStart() {
@@ -617,7 +646,10 @@ final class TitleScene: SKScene {
         renderSlots()
     }
 
-    #if os(tvOS)
+    /// Open the SwiftUI NameEntryOverlay for the given slot. Used on tvOS for
+    /// every join, and on iOS for touch slots when the player long-presses
+    /// their tile to edit (the inline-keyboard editor handles non-touch
+    /// joins on iPad/Mac).
     private func beginCoordinatorNameEntry(slot idx: Int, current: String) {
         manager.setJoinEnabled(false)
         renderSlots()
@@ -632,7 +664,6 @@ final class TitleScene: SKScene {
             self.renderSlots()
         }
     }
-    #endif
 
     private func renderSlots() {
         slotsLayer.removeAllChildren()

@@ -33,8 +33,12 @@ final class TouchOverlayState: ObservableObject {
 }
 
 extension Notification.Name {
-    /// Posted by the SwiftUI title overlay when the user taps inside the
-    /// SpriteView area. `userInfo["location"]` is a CGPoint in SpriteKit
-    /// scene coordinates (origin bottom-left).
+    /// Posted by the SwiftUI title overlay when the user taps (<0.5 s)
+    /// inside the SpriteView area. `userInfo["location"]` is a CGPoint in
+    /// SpriteKit scene coordinates (origin bottom-left).
     static let titleSceneTap = Notification.Name("TitleSceneTap")
+
+    /// Posted by the SwiftUI title overlay when the user holds (≥0.5 s)
+    /// inside the SpriteView area. Same `userInfo` shape as titleSceneTap.
+    static let titleSceneLongPress = Notification.Name("TitleSceneLongPress")
 }
