@@ -573,12 +573,14 @@ final class TitleScene: SKScene {
         }
 
         switch code {
-        case .keyA:
+        case .keyA, .returnOrEnter, .keypadEnter:
+            // Claim the keyboard slot, or re-open the name editor for an
+            // already-claimed keyboard player. Enter is intentionally NOT
+            // a "start game" key — only Space starts.
             if !manager.hasKeyboardPlayer,
                manager.slots.count < ControllerManager.maxPlayers {
                 manager.claimKeyboard()
             } else if let kbSlotIndex = manager.slots.firstIndex(where: { $0.keyboard != nil }) {
-                // Re-open name editor for the keyboard slot.
                 let current = UserDefaults.standard.string(
                     forKey: "player_name_\(kbSlotIndex)") ?? "P\(kbSlotIndex + 1)"
                 activeNameSlot = kbSlotIndex
@@ -587,7 +589,7 @@ final class TitleScene: SKScene {
                 manager.setJoinEnabled(false)
                 renderSlots()
             }
-        case .spacebar, .returnOrEnter, .keypadEnter:
+        case .spacebar:
             if focused == .help && activeNameSlot == nil {
                 openHelp()
             } else {
