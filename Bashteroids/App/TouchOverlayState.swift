@@ -46,6 +46,12 @@ extension Notification.Name {
     /// inside the SpriteView area. Same `userInfo` shape as titleSceneTap.
     static let titleSceneLongPress = Notification.Name("TitleSceneLongPress")
 
+    /// Posted by the SwiftUI title overlay when the user makes a horizontal
+    /// swipe (≥30 pt). `userInfo["location"]` is the swipe-start point in
+    /// SpriteKit scene coordinates; `userInfo["direction"]` is `+1` for
+    /// right swipe, `-1` for left.
+    static let titleSceneSwipe = Notification.Name("TitleSceneSwipe")
+
     /// Posted by the SwiftUI game-over overlay on tap. Same userInfo shape.
     static let gameOverSceneTap = Notification.Name("GameOverSceneTap")
 

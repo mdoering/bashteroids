@@ -147,17 +147,42 @@ struct TitleTapCatcher: View {
                         .onEnded { value in
                             let elapsed = pressStart.map { Date().timeIntervalSince($0) } ?? 0
                             pressStart = nil
-                            let scenePoint = CGPoint(
+
+                            let dx = value.translation.width
+                            let dy = value.translation.height
+                            let absDx = abs(dx)
+                            let absDy = abs(dy)
+                            let startScenePoint = CGPoint(
+                                x: value.startLocation.x,
+                                y: proxy.size.height - value.startLocation.y
+                            )
+                            let endScenePoint = CGPoint(
                                 x: value.location.x,
                                 y: proxy.size.height - value.location.y
                             )
+
+                            // Horizontal swipe takes precedence over tap /
+                            // long-press classification. 30 pt is the
+                            // smallest swipe iOS treats as deliberate.
+                            if absDx > 30 && absDx > absDy {
+                                NotificationCenter.default.post(
+                                    name: .titleSceneSwipe,
+                                    object: nil,
+                                    userInfo: [
+                                        "location": startScenePoint,
+                                        "direction": dx > 0 ? 1 : -1
+                                    ]
+                                )
+                                return
+                            }
+
                             let name: Notification.Name = elapsed >= 0.5
                                 ? .titleSceneLongPress
                                 : .titleSceneTap
                             NotificationCenter.default.post(
                                 name: name,
                                 object: nil,
-                                userInfo: ["location": scenePoint]
+                                userInfo: ["location": endScenePoint]
                             )
                         }
                 )

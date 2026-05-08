@@ -32,6 +32,10 @@ final class TitleScene: SKScene {
     /// Remembers the slot column the user last visited, so up-arrowing back
     /// from the selector column lands on the same slot rather than always 0.
     private var lastSlotFocusIndex: Int = 0
+    /// When true, left/right cycles the focused selector's value instead of
+    /// navigating focus. Toggled by A/Enter on a selector. Slot tiles, help,
+    /// and start are not "editable" — they ignore this flag.
+    private var editingSelector: Bool = false
 
     private var modeLabel: SKLabelNode!
     private var levelLabel: SKLabelNode!
@@ -53,6 +57,7 @@ final class TitleScene: SKScene {
     private var dpadEdge: [ObjectIdentifier: (left: Bool, right: Bool, up: Bool, down: Bool)] = [:]
     private var titleTapObserver: NSObjectProtocol?
     private var titleLongPressObserver: NSObjectProtocol?
+    private var titleSwipeObserver: NSObjectProtocol?
 
     override func didMove(to view: SKView) {
         backgroundColor = .black
@@ -72,6 +77,14 @@ final class TitleScene: SKScene {
             guard let self,
                   let location = note.userInfo?["location"] as? CGPoint else { return }
             MainActor.assumeIsolated { self.handleTouchLongPress(at: location) }
+        }
+        titleSwipeObserver = NotificationCenter.default.addObserver(
+            forName: .titleSceneSwipe, object: nil, queue: .main
+        ) { [weak self] note in
+            guard let self,
+                  let location = note.userInfo?["location"] as? CGPoint,
+                  let direction = note.userInfo?["direction"] as? Int else { return }
+            MainActor.assumeIsolated { self.handleTouchSwipe(at: location, direction: direction) }
         }
 
         // Poster background — aspect-fill so the landscape image covers the
@@ -375,6 +388,10 @@ final class TitleScene: SKScene {
             NotificationCenter.default.removeObserver(obs)
             titleLongPressObserver = nil
         }
+        if let obs = titleSwipeObserver {
+            NotificationCenter.default.removeObserver(obs)
+            titleSwipeObserver = nil
+        }
         // Neither scene state nor music is mutated here — willMove(from:)
         // on the old scene fires *after* didMove(to:) on the new scene in
         // SpriteKit transitions, so changing global state here clobbers the
@@ -432,13 +449,13 @@ final class TitleScene: SKScene {
         for (item, leftArrow, rightArrow, value, caption) in selectors {
             if leftArrow.frame.insetBy(dx: -hitPad, dy: -hitPad).contains(point) {
                 focused = item
-                cycleFocusedHorizontal(by: -1)
+                cycleSelectorValue(item, by: -1)
                 renderSelectors()
                 return
             }
             if rightArrow.frame.insetBy(dx: -hitPad, dy: -hitPad).contains(point) {
                 focused = item
-                cycleFocusedHorizontal(by:  1)
+                cycleSelectorValue(item, by:  1)
                 renderSelectors()
                 return
             }
@@ -454,6 +471,39 @@ final class TitleScene: SKScene {
                 return
             }
         }
+    }
+
+    /// Returns the selector FocusItem whose value/arrow region contains
+    /// `point`, or `nil` if none matches.
+    private func selectorAt(_ point: CGPoint) -> FocusItem? {
+        let hitPad: CGFloat = 12
+        let selectors: [(FocusItem, SKLabelNode, SKLabelNode, SKLabelNode, SKLabelNode?)] = [
+            (.mode,    modeLeftArrow,    modeRightArrow,    modeLabel,    nil),
+            (.level,   levelLeftArrow,   levelRightArrow,   levelLabel,   nil),
+            (.density, densityLeftArrow, densityRightArrow, densityLabel, densityCaption),
+            (.audio,   audioLeftArrow,   audioRightArrow,   audioLabel,   audioCaption),
+        ]
+        for (item, leftArrow, rightArrow, value, caption) in selectors {
+            var rect = leftArrow.frame
+                .union(rightArrow.frame)
+                .union(value.frame)
+                .insetBy(dx: -hitPad, dy: -hitPad)
+            if let cap = caption {
+                rect = rect.union(cap.frame.insetBy(dx: -hitPad, dy: -hitPad))
+            }
+            if rect.contains(point) { return item }
+        }
+        return nil
+    }
+
+    /// Touch swipe handler: a horizontal swipe over a selector tile cycles
+    /// its value. Direction is +1 (right) or -1 (left).
+    private func handleTouchSwipe(at point: CGPoint, direction: Int) {
+        guard activeNameSlot == nil,
+              let item = selectorAt(point) else { return }
+        focused = item
+        cycleSelectorValue(item, by: direction > 0 ? 1 : -1)
+        renderSelectors()
     }
 
     /// Long-press on a claimed touch slot opens the SwiftUI name editor
@@ -925,14 +975,21 @@ final class TitleScene: SKScene {
 
         joinHintLabel.fontColor = focused == .start ? active : .white
 
-        modeLeftArrow.fontColor     = focused == .mode    ? active : inactive
-        modeRightArrow.fontColor    = focused == .mode    ? active : inactive
-        levelLeftArrow.fontColor    = focused == .level   ? active : inactive
-        levelRightArrow.fontColor   = focused == .level   ? active : inactive
-        densityLeftArrow.fontColor  = focused == .density ? active : inactive
-        densityRightArrow.fontColor = focused == .density ? active : inactive
-        audioLeftArrow.fontColor    = focused == .audio   ? active : inactive
-        audioRightArrow.fontColor   = focused == .audio   ? active : inactive
+        let editing = editingSelector
+        let editingScale: CGFloat = 1.3
+
+        func style(_ arrow: SKLabelNode, item: FocusItem) {
+            arrow.fontColor = focused == item ? active : inactive
+            arrow.setScale((focused == item && editing) ? editingScale : 1.0)
+        }
+        style(modeLeftArrow,    item: .mode)
+        style(modeRightArrow,   item: .mode)
+        style(levelLeftArrow,   item: .level)
+        style(levelRightArrow,  item: .level)
+        style(densityLeftArrow, item: .density)
+        style(densityRightArrow,item: .density)
+        style(audioLeftArrow,   item: .audio)
+        style(audioRightArrow,  item: .audio)
 
         // Hint stays hidden by default; flashBattleHint() shows it briefly
         // when the player tries to start BATTLE without enough slots claimed.
@@ -999,7 +1056,9 @@ final class TitleScene: SKScene {
     ///   entry point).
     /// - In the selector column: up/down moves through the list. Mode-up
     ///   returns to the slot you came from; start-up → help.
+    /// - While editing a selector: up/down is ignored — A exits edit mode.
     private func moveFocus(by delta: Int) {
+        if editingSelector { return }
         switch focused {
         case .slot0, .slot1, .slot2, .slot3:
             focused = (delta > 0) ? .start : .mode
@@ -1034,11 +1093,15 @@ final class TitleScene: SKScene {
     }
 
     /// Horizontal navigation.
-    /// - On the slot row: moves between slot tiles (clamped — no wrap).
-    /// - On a selector: right cycles the value (existing behaviour); left
-    ///   exits the column to the rightmost slot (P4).
-    /// - On help / start (no value to cycle): left → P4; right is a no-op.
+    /// - While editing a selector: left/right cycles its value.
+    /// - Slot row: moves between tiles (clamped — no wrap).
+    /// - Selector / help / start: left exits the column to slot 3 (P4),
+    ///   right is a no-op.
     private func cycleFocusedHorizontal(by delta: Int) {
+        if editingSelector {
+            cycleFocusedSelectorValue(by: delta)
+            return
+        }
         switch focused {
         case .slot0:
             if delta > 0 { setSlotFocus(1) }
@@ -1048,18 +1111,33 @@ final class TitleScene: SKScene {
             setSlotFocus(delta > 0 ? 3 : 1)
         case .slot3:
             if delta < 0 { setSlotFocus(2) }
-        case .mode:
-            if delta < 0 { setSlotFocus(3) } else { cycleMode(by: delta) }
-        case .level:
-            if delta < 0 { setSlotFocus(3) } else { cycleLevel(by: delta) }
-        case .density:
-            if delta < 0 { setSlotFocus(3) } else { cycleDensity(by: delta) }
-        case .audio:
-            if delta < 0 { setSlotFocus(3) } else { cycleAudio(by: delta) }
-        case .help:
+        case .mode, .level, .density, .audio, .help, .start:
             if delta < 0 { setSlotFocus(3) }
-        case .start:
-            if delta < 0 { setSlotFocus(3) }
+        }
+    }
+
+    /// Cycle the value of whichever selector is currently focused. Called
+    /// from edit mode and from direct touch gestures (arrow taps, swipes).
+    private func cycleFocusedSelectorValue(by delta: Int) {
+        switch focused {
+        case .mode:    cycleMode(by: delta)
+        case .level:   cycleLevel(by: delta)
+        case .density: cycleDensity(by: delta)
+        case .audio:   cycleAudio(by: delta)
+        default: break
+        }
+    }
+
+    /// Cycle the value of a specific selector (used for touch hits/swipes
+    /// where the gesture's start point identifies the selector regardless
+    /// of current focus).
+    private func cycleSelectorValue(_ item: FocusItem, by delta: Int) {
+        switch item {
+        case .mode:    cycleMode(by: delta)
+        case .level:   cycleLevel(by: delta)
+        case .density: cycleDensity(by: delta)
+        case .audio:   cycleAudio(by: delta)
+        default: break
         }
     }
 
@@ -1072,6 +1150,7 @@ final class TitleScene: SKScene {
         default: return
         }
         lastSlotFocusIndex = index
+        editingSelector = false
         renderSelectors()
         renderSlots()
     }
@@ -1107,10 +1186,11 @@ final class TitleScene: SKScene {
         case .slot1: confirmSlotFocus(1, controller: controller)
         case .slot2: confirmSlotFocus(2, controller: controller)
         case .slot3: confirmSlotFocus(3, controller: controller)
-        case .mode:    cycleMode(by: 1)
-        case .level:   cycleLevel(by: 1)
-        case .density: cycleDensity(by: 1)
-        case .audio:   cycleAudio(by: 1)
+        case .mode, .level, .density, .audio:
+            // Toggle edit mode for the focused selector. While editing,
+            // left/right cycles the value; A again exits.
+            editingSelector.toggle()
+            renderSelectors()
         case .start:   tryStart()
         case .help:    openHelp()
         }
