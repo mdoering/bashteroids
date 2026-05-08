@@ -198,12 +198,28 @@ final class ControllerManager {
     @discardableResult
     func claimKeyboard() -> PlayerSlot? {
         guard !hasKeyboardPlayer, slots.count < Self.maxPlayers else { return nil }
-        let index = slots.count
+        return claimKeyboard(atSlot: slots.count)
+    }
+
+    /// Claim a specific empty slot for the keyboard player.
+    @discardableResult
+    func claimKeyboard(atSlot index: Int) -> PlayerSlot? {
+        guard !hasKeyboardPlayer else { return nil }
+        guard emptySlotIndices().contains(index) else { return nil }
         let slot = PlayerSlot(index: index, color: Self.playerColors[index], keyboard: keyboardInput)
         slots.append(slot)
+        slots.sort { $0.index < $1.index }
         TouchOverlayState.shared.recompute()
         onSlotsChanged?()
         return slot
+    }
+
+    /// Public claim path used by TitleScene's focus-confirm flow when an
+    /// unclaimed controller activates a focused slot tile. The internal
+    /// pressedChangedHandler-based claim path also funnels through here.
+    @discardableResult
+    func claim(controller: GCController, atSlot index: Int) -> PlayerSlot? {
+        return internalClaim(controller: controller, atSlot: index)
     }
 
     /// Claim a specific empty slot for the touch player. At most one touch
@@ -238,7 +254,7 @@ final class ControllerManager {
     #endif
 
     @discardableResult
-    private func claim(controller: GCController, atSlot index: Int) -> PlayerSlot? {
+    private func internalClaim(controller: GCController, atSlot index: Int) -> PlayerSlot? {
         guard slot(for: controller) == nil else { return nil }
         guard emptySlotIndices().contains(index) else { return nil }
         let slot = PlayerSlot(

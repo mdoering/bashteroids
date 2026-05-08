@@ -25,8 +25,14 @@ final class TitleScene: SKScene {
     private var selectedDensity: PowerUpDensity = GameSettings.sessionPowerUpDensity
     private var selectedAudio: AudioMode = GameSettings.audioMode
 
-    private enum FocusItem: CaseIterable { case mode, level, density, audio, help, start }
-    private var focused: FocusItem = .mode
+    private enum FocusItem: CaseIterable {
+        case slot0, slot1, slot2, slot3
+        case mode, level, density, audio, help, start
+    }
+    private var focused: FocusItem = .slot0
+    /// Remembers the slot column the user last visited, so up-arrowing back
+    /// from the selector column lands on the same slot rather than always 0.
+    private var lastSlotFocusIndex: Int = 0
 
     private var modeLabel: SKLabelNode!
     private var levelLabel: SKLabelNode!
@@ -84,9 +90,9 @@ final class TitleScene: SKScene {
         let hasHardwareKeyboard = GCKeyboard.coalesced != nil
         let beginText = hasHardwareKeyboard ? "[SPACE] BEGIN GAME" : "BEGIN GAME"
         let hint = SKLabelNode(text: beginText)
-        hint.fontName = "AvenirNext-Regular"
+        hint.fontName = "AvenirNext-Bold"
         hint.fontSize = 18
-        hint.fontColor = SKColor(white: 0.55, alpha: 1)
+        hint.fontColor = .white
         hint.position = CGPoint(x: size.width / 2, y: size.height * 0.04)
         addChild(hint)
         self.joinHintLabel = hint
@@ -529,40 +535,18 @@ final class TitleScene: SKScene {
         nameEntryActive = activeNameSlot != nil
         #endif
 
-        if !nameEntryActive {
-            for (i, slot) in manager.slots.enumerated() {
-                let pressed = slot.controller?.extendedGamepad?.buttonA.isPressed
-                    ?? slot.controller?.microGamepad?.buttonA.isPressed
-                    ?? false
-                let was = slotAWasPressed[i] ?? false
-                slotAWasPressed[i] = pressed
-                if pressed && !was {
-                    let current = UserDefaults.standard.string(
-                        forKey: "player_name_\(i)") ?? "P\(i + 1)"
-                    #if os(tvOS)
-                    beginCoordinatorNameEntry(slot: i, current: current)
-                    #else
-                    activeNameSlot = i
-                    nameBuffer = current
-                    manager.setJoinEnabled(false)
-                    renderSlots()
-                    #endif
-                    break
-                }
-            }
-        } else {
-            // Name entry active. A rising edge of any controller's buttonA
-            // confirms the current entry — gives controller-only setups a
-            // way out of name entry without a keyboard.
-            for (i, slot) in manager.slots.enumerated() {
-                let pressed = slot.controller?.extendedGamepad?.buttonA.isPressed
-                    ?? slot.controller?.microGamepad?.buttonA.isPressed
-                    ?? false
-                let was = slotAWasPressed[i] ?? false
-                if pressed && !was {
-                    confirmName()
-                }
-                slotAWasPressed[i] = pressed
+        // While name entry is active, a rising-edge A on any claimed
+        // controller confirms the entry — gives controller-only setups a way
+        // out without a keyboard. When name entry is not active, A is routed
+        // through the focus-confirm path further down.
+        for (i, slot) in manager.slots.enumerated() {
+            let pressed = slot.controller?.extendedGamepad?.buttonA.isPressed
+                ?? slot.controller?.microGamepad?.buttonA.isPressed
+                ?? false
+            let was = slotAWasPressed[i] ?? false
+            slotAWasPressed[i] = pressed
+            if nameEntryActive, pressed && !was {
+                confirmName()
             }
         }
 
@@ -595,18 +579,17 @@ final class TitleScene: SKScene {
                 return false
             }()
             if !nameEntryActive {
-                let isClaimed = manager.slot(for: c) != nil
-
                 if curr.up    && !prev.up    { moveFocus(by: -1) }
                 if curr.down  && !prev.down  { moveFocus(by:  1) }
+                if curr.left  && !prev.left  { cycleFocusedHorizontal(by: -1) }
+                if curr.right && !prev.right { cycleFocusedHorizontal(by:  1) }
 
-                if curr.left && !prev.left {
-                    if isClaimed { cycleFocusedHorizontal(by: -1) }
-                    else         { previewSlot(controller: c, by: -1) }
-                }
-                if curr.right && !prev.right {
-                    if isClaimed { cycleFocusedHorizontal(by:  1) }
-                    else         { previewSlot(controller: c, by:  1) }
+                // Keep this controller's intendedSlot aligned with the focus
+                // when it lands on a slot tile — drives the preview marker
+                // and the join handler's claim target.
+                if curr.up != prev.up || curr.down != prev.down
+                   || curr.left != prev.left || curr.right != prev.right {
+                    syncIntendedSlot(controller: c)
                 }
             }
             dpadEdge[id] = curr
@@ -638,12 +621,15 @@ final class TitleScene: SKScene {
             }
             bWasPressed[id] = bPressed
 
-            // Claimed controllers: A = "confirm focused" (cycle / open help).
-            // Unclaimed controllers' A is still handled by the join handler in
-            // ControllerManager and consults intendedSlotIndex(for:). aWasPressed
-            // is updated unconditionally so a held A-press across the
-            // unclaimed→claimed transition doesn't mis-fire on the first frame
-            // post-claim.
+            // Claimed controllers: A = "confirm focused" — cycles a selector,
+            // opens help, starts the game, or (if focus is on this
+            // controller's own slot) opens the name editor.
+            // Unclaimed controllers' A is handled by ControllerManager's
+            // join handler at the controller's intendedSlot — which we keep
+            // pinned to the shared focus when focus is on a slot tile.
+            // aWasPressed is updated unconditionally so a held A-press
+            // across the unclaimed→claimed transition doesn't mis-fire on
+            // the first frame post-claim.
             let aPressed = c.extendedGamepad?.buttonA.isPressed
                 ?? c.microGamepad?.buttonA.isPressed
                 ?? false
@@ -652,7 +638,7 @@ final class TitleScene: SKScene {
                 && manager.slot(for: c) != nil
                 && !nameEntryActive
             {
-                confirmFocused()
+                confirmFocused(byController: c)
             }
             aWasPressed[id] = aPressed
         }
@@ -709,21 +695,10 @@ final class TitleScene: SKScene {
 
         switch code {
         case .keyA, .returnOrEnter, .keypadEnter:
-            // Claim the keyboard slot, or re-open the name editor for an
-            // already-claimed keyboard player. Enter is intentionally NOT
-            // a "start game" key — only Space starts.
-            if !manager.hasKeyboardPlayer,
-               manager.slots.count < ControllerManager.maxPlayers {
-                manager.claimKeyboard()
-            } else if let kbSlotIndex = manager.slots.firstIndex(where: { $0.keyboard != nil }) {
-                let current = UserDefaults.standard.string(
-                    forKey: "player_name_\(kbSlotIndex)") ?? "P\(kbSlotIndex + 1)"
-                activeNameSlot = kbSlotIndex
-                nameBuffer = current
-                nameSuggestionIndex = -1
-                manager.setJoinEnabled(false)
-                renderSlots()
-            }
+            // Confirm the focused item. Enter is intentionally NOT a
+            // "start game" key here — Space starts; Enter only confirms
+            // the focused selector / slot.
+            confirmFocused()
         case .spacebar:
             if focused == .help && activeNameSlot == nil {
                 openHelp()
@@ -832,13 +807,24 @@ final class TitleScene: SKScene {
             let claimed = slot != nil
             let color: SKColor = slot?.color ?? SKColor(white: 0.4, alpha: 1)
 
+            let isFocused = focusedSlotIndex() == i
             let tile = SKShapeNode(rectOf: CGSize(width: tileWidth, height: 110), cornerRadius: 8)
             tile.position = center
             tile.strokeColor = color
             tile.fillColor = .black
-            tile.lineWidth = 3
+            tile.lineWidth = isFocused ? 5 : 3
             if !claimed { tile.name = "joinTile" }
             slotsLayer.addChild(tile)
+
+            if isFocused {
+                let ring = SKShapeNode(rectOf: CGSize(width: tileWidth + 8, height: 118),
+                                       cornerRadius: 10)
+                ring.position = center
+                ring.strokeColor = TitleScene.accentGold
+                ring.fillColor = .clear
+                ring.lineWidth = 2
+                slotsLayer.addChild(ring)
+            }
 
             if claimed {
                 let ship = Shapes.shipV(color: color, scale: 1.6)
@@ -947,9 +933,7 @@ final class TitleScene: SKScene {
 
         helpLabel.fontColor = focused == .help ? active : inactive
 
-        joinHintLabel.fontColor = focused == .start
-            ? active
-            : SKColor(white: 0.55, alpha: 1)
+        joinHintLabel.fontColor = focused == .start ? active : .white
 
         modeLeftArrow.fontColor     = focused == .mode    ? active : inactive
         modeRightArrow.fontColor    = focused == .mode    ? active : inactive
@@ -1020,16 +1004,55 @@ final class TitleScene: SKScene {
         battleHintLabel.run(pulse)
     }
 
+    /// Vertical navigation. Up/down hops between the slot row (top) and the
+    /// selector column (right side). Within the selector column, up/down moves
+    /// to the neighbouring item.
     private func moveFocus(by delta: Int) {
-        let items = FocusItem.allCases
-        let i = items.firstIndex(of: focused) ?? 0
-        let next = (i + delta + items.count) % items.count
-        focused = items[next]
+        switch focused {
+        case .slot0, .slot1, .slot2, .slot3:
+            if delta > 0 { focused = .mode }   // down enters the selector column
+        case .mode:
+            if delta < 0 { focused = lastSlotFocus() }
+            else { focused = .level }
+        case .level:
+            focused = (delta < 0) ? .mode : .density
+        case .density:
+            focused = (delta < 0) ? .level : .audio
+        case .audio:
+            focused = (delta < 0) ? .density : .help
+        case .help:
+            focused = (delta < 0) ? .audio : .start
+        case .start:
+            if delta < 0 { focused = .help }
+        }
         renderSelectors()
+        renderSlots()
     }
 
+    /// When up-arrowing from the selector column, snap to the slot row,
+    /// preferring the slot index that the actor (or the most recent action)
+    /// last touched. Falls back to slot 0.
+    private func lastSlotFocus() -> FocusItem {
+        switch lastSlotFocusIndex {
+        case 1: return .slot1
+        case 2: return .slot2
+        case 3: return .slot3
+        default: return .slot0
+        }
+    }
+
+    /// Horizontal navigation. On the slot row, moves between slot tiles
+    /// (clamped — no wrap). On selectors, cycles the value.
     private func cycleFocusedHorizontal(by delta: Int) {
         switch focused {
+        case .slot0:
+            if delta > 0 { setSlotFocus(1) }
+        case .slot1:
+            setSlotFocus(delta > 0 ? 2 : 0)
+        case .slot2:
+            setSlotFocus(delta > 0 ? 3 : 1)
+        case .slot3:
+            if delta < 0 { setSlotFocus(2) }
         case .mode:    cycleMode(by: delta)
         case .level:   cycleLevel(by: delta)
         case .density: cycleDensity(by: delta)
@@ -1039,18 +1062,50 @@ final class TitleScene: SKScene {
         }
     }
 
-    private func previewSlot(controller: GCController, by delta: Int) {
-        let empty = manager.emptySlotIndices()
-        guard !empty.isEmpty else { return }
-        let curr = manager.intendedSlotIndex(for: controller)
-        let i = empty.firstIndex(of: curr) ?? 0
-        let next = empty[(i + delta + empty.count) % empty.count]
-        manager.setIntendedSlotIndex(next, for: controller)
+    private func setSlotFocus(_ index: Int) {
+        switch index {
+        case 0: focused = .slot0
+        case 1: focused = .slot1
+        case 2: focused = .slot2
+        case 3: focused = .slot3
+        default: return
+        }
+        lastSlotFocusIndex = index
+        renderSelectors()
         renderSlots()
     }
 
-    private func confirmFocused() {
+    /// For unclaimed controllers, keep the per-controller intendedSlot
+    /// aligned with the shared focus when focus is on a slot — so the preview
+    /// triangle and the upcoming claim agree.
+    private func syncIntendedSlot(controller: GCController) {
+        guard manager.slot(for: controller) == nil,
+              let idx = focusedSlotIndex() else { return }
+        manager.setIntendedSlotIndex(idx, for: controller)
+    }
+
+    private func focusedSlotIndex() -> Int? {
         switch focused {
+        case .slot0: return 0
+        case .slot1: return 1
+        case .slot2: return 2
+        case .slot3: return 3
+        default: return nil
+        }
+    }
+
+    /// Confirm the current focus.
+    ///
+    /// `controller` is the gamepad that triggered the confirmation, or `nil`
+    /// for keyboard-driven activation. Slot focus delegates to
+    /// `confirmSlotFocus` so the action depends on who pressed and what's
+    /// already in that tile.
+    private func confirmFocused(byController controller: GCController? = nil) {
+        switch focused {
+        case .slot0: confirmSlotFocus(0, controller: controller)
+        case .slot1: confirmSlotFocus(1, controller: controller)
+        case .slot2: confirmSlotFocus(2, controller: controller)
+        case .slot3: confirmSlotFocus(3, controller: controller)
         case .mode:    cycleMode(by: 1)
         case .level:   cycleLevel(by: 1)
         case .density: cycleDensity(by: 1)
@@ -1058,6 +1113,49 @@ final class TitleScene: SKScene {
         case .start:   tryStart()
         case .help:    openHelp()
         }
+    }
+
+    /// Slot tile activated.
+    ///
+    /// - Controller, unclaimed → claim this empty slot (no-op if claimed).
+    /// - Controller, claimed at this slot → re-edit the player name.
+    /// - Controller, claimed elsewhere → ignored.
+    /// - Keyboard, unclaimed → claim this empty slot for the keyboard.
+    /// - Keyboard, claimed at this slot → re-edit the player name.
+    /// - Keyboard, claimed elsewhere → ignored.
+    private func confirmSlotFocus(_ slotIndex: Int, controller: GCController?) {
+        guard activeNameSlot == nil else { return }
+        if let c = controller {
+            if let mySlot = manager.slot(for: c) {
+                if mySlot.index == slotIndex {
+                    openNameEditor(forSlot: slotIndex)
+                }
+            } else if manager.emptySlotIndices().contains(slotIndex) {
+                manager.claim(controller: c, atSlot: slotIndex)
+            }
+        } else {
+            // Keyboard-driven confirm.
+            if let kbSlotIndex = manager.slots.firstIndex(where: { $0.keyboard != nil }),
+               manager.slots[kbSlotIndex].index == slotIndex {
+                openNameEditor(forSlot: slotIndex)
+            } else if !manager.hasKeyboardPlayer,
+                      manager.emptySlotIndices().contains(slotIndex) {
+                manager.claimKeyboard(atSlot: slotIndex)
+            }
+        }
+    }
+
+    private func openNameEditor(forSlot idx: Int) {
+        let current = UserDefaults.standard.string(forKey: "player_name_\(idx)") ?? "P\(idx + 1)"
+        #if os(tvOS)
+        beginCoordinatorNameEntry(slot: idx, current: current)
+        #else
+        activeNameSlot = idx
+        nameBuffer = current
+        nameSuggestionIndex = -1
+        manager.setJoinEnabled(false)
+        renderSlots()
+        #endif
     }
 
     private func cycleAudio(by delta: Int) {

@@ -140,9 +140,9 @@ final class GameOverScene: SKScene {
         let hasHardwareKeyboard = GCKeyboard.coalesced != nil
         let replayText = hasHardwareKeyboard ? "[R] PLAY AGAIN" : "PLAY AGAIN"
         let hint = SKLabelNode(text: replayText)
-        hint.fontName = "AvenirNext-Regular"
+        hint.fontName = "AvenirNext-Bold"
         hint.fontSize = 18
-        hint.fontColor = SKColor(white: 0.55, alpha: 1)
+        hint.fontColor = .white
         hint.position = CGPoint(x: size.width / 2, y: size.height * 0.04)
         addChild(hint)
         self.hintLabel = hint
