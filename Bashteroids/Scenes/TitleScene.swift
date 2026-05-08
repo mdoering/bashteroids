@@ -535,6 +535,7 @@ final class TitleScene: SKScene {
                     ?? slot.controller?.microGamepad?.buttonA.isPressed
                     ?? false
                 let was = slotAWasPressed[i] ?? false
+                slotAWasPressed[i] = pressed
                 if pressed && !was {
                     let current = UserDefaults.standard.string(
                         forKey: "player_name_\(i)") ?? "P\(i + 1)"
@@ -548,7 +549,6 @@ final class TitleScene: SKScene {
                     #endif
                     break
                 }
-                slotAWasPressed[i] = pressed
             }
         } else {
             // Name entry active. A rising edge of any controller's buttonA
