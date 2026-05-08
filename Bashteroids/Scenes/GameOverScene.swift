@@ -11,9 +11,11 @@ final class GameOverScene: SKScene {
 
     private let result: Result
     private let level: Int
+    private let mode: GameMode
+    private let density: PowerUpDensity
     private let manager = ControllerManager.shared
     private var transitioning = false
-    private var prevButtonState: [ObjectIdentifier: (menu: Bool, a: Bool)] = [:]
+    private var prevButtonState: [ObjectIdentifier: (menu: Bool, a: Bool, x: Bool)] = [:]
 
     /// First key/button in a non-NORMAL survival run plays the score-reveal
     /// animation; subsequent presses dismiss to title. NORMAL density and
@@ -27,9 +29,11 @@ final class GameOverScene: SKScene {
     private var revealedFinalScore: Int = 0
     private var revealedPlayerCountIsTeam: Bool = false
 
-    init(size: CGSize, result: Result, level: Int) {
+    init(size: CGSize, result: Result, level: Int, mode: GameMode, density: PowerUpDensity) {
         self.result = result
         self.level = level
+        self.mode = mode
+        self.density = density
         super.init(size: size)
     }
 
@@ -123,6 +127,13 @@ final class GameOverScene: SKScene {
             addChild(rightShip)
         }
 
+        let hint = SKLabelNode(text: "[R / X / ▶❙❙] PLAY AGAIN  ·  [SPACE] TITLE")
+        hint.fontName = "AvenirNext-Regular"
+        hint.fontSize = 14
+        hint.fontColor = SKColor(white: 0.45, alpha: 1)
+        hint.position = CGPoint(x: size.width / 2, y: size.height * 0.07)
+        addChild(hint)
+
         KeyboardManager.shared.onKeyDown = { [weak self] code in
             self?.handleKeyDown(code)
         }
@@ -130,6 +141,8 @@ final class GameOverScene: SKScene {
 
     private func handleKeyDown(_ code: GCKeyCode) {
         switch code {
+        case .keyR:
+            handleReplayPress()
         case .keyA, .spacebar, .returnOrEnter, .keypadEnter:
             handleDismissPress()
         case .escape:
@@ -144,15 +157,33 @@ final class GameOverScene: SKScene {
         for c in manager.connectedControllers {
             let menu = c.extendedGamepad?.buttonMenu.isPressed ?? false
             let a    = c.extendedGamepad?.buttonA.isPressed    ?? false
+            let x    = c.extendedGamepad?.buttonX.isPressed
+                    ?? c.microGamepad?.buttonX.isPressed
+                    ?? false
             let id = ObjectIdentifier(c)
-            let prev = prevButtonState[id] ?? (false, false)
+            let prev = prevButtonState[id] ?? (menu: false, a: false, x: false)
 
+            if x && !prev.x {
+                handleReplayPress()
+                break
+            }
             if (menu && !prev.menu) || (a && !prev.a) {
                 handleDismissPress()
                 break
             }
-            prevButtonState[id] = (menu, a)
+            prevButtonState[id] = (menu, a, x)
         }
+    }
+
+    /// Replay the same mode + density at the level that just ended, with
+    /// the current roster preserved. Skips any pending score-reveal animation
+    /// — the player's intent is unambiguous.
+    private func handleReplayPress() {
+        guard !transitioning else { return }
+        transitioning = true
+        let next = GameScene(size: size, level: level, mode: mode, density: density)
+        next.scaleMode = scaleMode
+        view?.presentScene(next, transition: .fade(withDuration: 0.4))
     }
 
     private func handleDismissPress() {
