@@ -15,7 +15,11 @@ struct GameContainerView: View {
             }
             .background(.black)
 
-            #if os(iOS)
+            // Touch overlays are intentionally iPad-only. On Mac Catalyst
+            // mouse clicks would otherwise pose as touches and silently
+            // claim a touch slot, which on Mac is never what the user
+            // intended (they have a real keyboard).
+            #if os(iOS) && !targetEnvironment(macCatalyst)
             if touchOverlay.titleTapActive {
                 TitleTapCatcher()
                     .ignoresSafeArea()
