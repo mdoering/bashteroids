@@ -742,13 +742,13 @@ final class TitleScene: SKScene {
             let center = CGPoint(x: x, y: y)
             let slot = slotByIndex[i]
             let claimed = slot != nil
-            let color: SKColor = slot?.color ?? SKColor(white: 0.25, alpha: 1)
+            let color: SKColor = slot?.color ?? SKColor(white: 0.4, alpha: 1)
 
             let tile = SKShapeNode(rectOf: CGSize(width: tileWidth, height: 110), cornerRadius: 8)
             tile.position = center
             tile.strokeColor = color
-            tile.fillColor = .clear
-            tile.lineWidth = 2
+            tile.fillColor = .black
+            tile.lineWidth = 3
             slotsLayer.addChild(tile)
 
             if claimed {
