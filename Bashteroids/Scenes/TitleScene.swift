@@ -490,19 +490,39 @@ final class TitleScene: SKScene {
     /// Hit-test the title-scene's interactive elements against a SwiftUI-
     /// forwarded tap location (already in scene coords).
     private func handleTouchTap(at point: CGPoint) {
+        let touchSlotIdx = manager.slots.first(where: { $0.touchInput != nil })?.index
+
         // Cycler touch buttons take precedence whenever the touch player's
-        // editor is open.
-        if let touchSlot = manager.slots.first(where: { $0.touchInput != nil })?.index,
-           nameEditing[touchSlot] != nil,
-           handleCyclerTouchTap(at: point, slot: touchSlot) {
+        // name editor is open.
+        if let i = touchSlotIdx, nameEditing[i] != nil,
+           handleCyclerTouchTap(at: point, slot: i) {
             return
         }
 
-        // Tap on a slot tile: claim if empty (and we don't have a touch player
-        // yet), or release if it's the current touch player's tile.
+        // Color-picker arrows on the touch player's pickColor tile take
+        // precedence over the slot-tile tap, since the arrows live inside
+        // the tile rect.
+        if let i = touchSlotIdx, pickingColor[i] != nil,
+           handleColorPickerTouchTap(at: point, slot: i) {
+            return
+        }
+
+        // Tap on a slot tile.
         if let i = slotTileIndex(at: point) {
             if let slot = manager.slots.first(where: { $0.index == i }), slot.touchInput != nil {
-                manager.releaseTouchSlot()
+                // Tap on the touch player's own tile mirrors the controller's
+                // triple-A: pickColor → confirm color → enter nameEdit.
+                // Inside nameEdit, the cycler ⏎/✓ buttons handle char insert
+                // and final confirm — but a tap anywhere else in the tile
+                // commits the name (treats tap as "I'm done"). On idle,
+                // tap-own-slot releases. Long-press releases at any phase.
+                if pickingColor[i] != nil {
+                    confirmColorPick(slot: i)
+                } else if nameEditing[i] != nil {
+                    confirmName(slot: i)
+                } else {
+                    manager.releaseTouchSlot()
+                }
                 return
             }
             if !manager.hasTouchPlayer, manager.emptySlotIndices().contains(i) {
@@ -578,17 +598,27 @@ final class TitleScene: SKScene {
     }
 
     private func handleTouchSwipe(at point: CGPoint, direction: Int) {
+        // Swipe over the touch player's pickColor tile cycles the candidate
+        // color. Otherwise fall through to the selector swipe path.
+        if let touchSlot = manager.slots.first(where: { $0.touchInput != nil })?.index,
+           pickingColor[touchSlot] != nil,
+           slotTileIndex(at: point) == touchSlot {
+            cycleColorCandidate(slot: touchSlot, by: direction > 0 ? 1 : -1)
+            return
+        }
         guard let item = selectorAt(point) else { return }
         focused = item
         cycleSelectorValue(item, by: direction > 0 ? 1 : -1)
         renderSelectors()
     }
 
-    /// Long-press on a touch slot has no special meaning in the new flow.
-    /// (Name editing is part of the join flow; to rename, the touch player
-    /// taps to release and re-claims.)
+    /// Long-press on the touch player's own slot tile releases the slot at
+    /// any phase (mirrors the controller's B button).
     private func handleTouchLongPress(at point: CGPoint) {
-        _ = point
+        guard let i = slotTileIndex(at: point),
+              let slot = manager.slots.first(where: { $0.index == i }),
+              slot.touchInput != nil else { return }
+        manager.releaseTouchSlot()
     }
 
     /// Hit-test the cycler touch button row for `slot`. Returns true if a
@@ -606,6 +636,24 @@ final class TitleScene: SKScene {
             case "cyclerBtnCycleBack": cycleLiveChar(slot: idx, by: -1)
             case "cyclerBtnCommit":    insertLiveChar(slot: idx)
             case "cyclerBtnConfirm":   confirmName(slot: idx)
+            default: break
+            }
+            return true
+        }
+        return false
+    }
+
+    /// Hit-test the color-picker arrows for `slot`. Returns true if an arrow
+    /// was hit and the candidate was cycled.
+    private func handleColorPickerTouchTap(at point: CGPoint, slot idx: Int) -> Bool {
+        let hitPad: CGFloat = 12
+        for node in slotsLayer.children {
+            guard let name = node.name,
+                  name.hasPrefix("colorArrow"),
+                  node.frame.insetBy(dx: -hitPad, dy: -hitPad).contains(point) else { continue }
+            switch name {
+            case "colorArrowLeft":  cycleColorCandidate(slot: idx, by: -1)
+            case "colorArrowRight": cycleColorCandidate(slot: idx, by:  1)
             default: break
             }
             return true
@@ -959,7 +1007,7 @@ final class TitleScene: SKScene {
                                    slotIndex: i,
                                    isTouchSlot: slot?.touchInput != nil)
             } else if isPicking {
-                renderColorPickerHint(x: x, y: y, color: slot?.color ?? TitleScene.accentGold)
+                renderColorPicker(x: x, y: y, color: slot?.color ?? TitleScene.accentGold)
             } else if claimed {
                 let nameLabel = SKLabelNode(text: storedName)
                 nameLabel.fontName = "AvenirNext-Regular"
@@ -987,39 +1035,47 @@ final class TitleScene: SKScene {
         }
     }
 
-    /// Hint row inside a color-picking tile: `◀ PICK COLOR ▶`. The ring + ship
-    /// already preview the candidate color, so this is just guidance for the
-    /// player on what the d-pad will do.
-    private func renderColorPickerHint(x: CGFloat, y: CGFloat, color: SKColor) {
-        let leftArrow = SKLabelNode(text: "◀")
+    /// Render the color-picker overlay on a slot tile mid-pickColor. Layout:
+    ///   ← on the left edge of the tile, → on the right edge (both tappable),
+    ///   a single-line hint below the tile.
+    /// The tile ring + ghost ship already preview the candidate color, so the
+    /// label below just summarises how to advance / cancel.
+    /// (`←`/`→` rather than `◀`/`▶` because AvenirNext-Bold at this size
+    /// renders the triangle glyphs as tofu on iPad.)
+    private func renderColorPicker(x: CGFloat, y: CGFloat, color: SKColor) {
+        let leftArrow = SKLabelNode(text: "\u{2190}")
         leftArrow.fontName = "AvenirNext-Bold"
-        leftArrow.fontSize = 14
+        leftArrow.fontSize = 24
         leftArrow.fontColor = TitleScene.accentGold
-        leftArrow.position = CGPoint(x: x - 44, y: y - 75)
-        leftArrow.verticalAlignmentMode = .top
+        leftArrow.position = CGPoint(x: x - 40, y: y)
+        leftArrow.verticalAlignmentMode = .center
+        leftArrow.horizontalAlignmentMode = .center
+        leftArrow.name = "colorArrowLeft"
         slotsLayer.addChild(leftArrow)
 
-        let label = SKLabelNode(text: "PICK COLOR")
-        label.fontName = "AvenirNext-Bold"
-        label.fontSize = 12
-        label.fontColor = color
-        label.position = CGPoint(x: x, y: y - 75)
-        label.verticalAlignmentMode = .top
-        slotsLayer.addChild(label)
-
-        let rightArrow = SKLabelNode(text: "▶")
+        let rightArrow = SKLabelNode(text: "\u{2192}")
         rightArrow.fontName = "AvenirNext-Bold"
-        rightArrow.fontSize = 14
+        rightArrow.fontSize = 24
         rightArrow.fontColor = TitleScene.accentGold
-        rightArrow.position = CGPoint(x: x + 44, y: y - 75)
-        rightArrow.verticalAlignmentMode = .top
+        rightArrow.position = CGPoint(x: x + 40, y: y)
+        rightArrow.verticalAlignmentMode = .center
+        rightArrow.horizontalAlignmentMode = .center
+        rightArrow.name = "colorArrowRight"
         slotsLayer.addChild(rightArrow)
 
-        let hint = SKLabelNode(text: "A ACCEPT  B CANCEL")
+        let title = SKLabelNode(text: "PICK COLOR")
+        title.fontName = "AvenirNext-Bold"
+        title.fontSize = 10
+        title.fontColor = color
+        title.position = CGPoint(x: x, y: y - 75)
+        title.verticalAlignmentMode = .top
+        slotsLayer.addChild(title)
+
+        let hint = SKLabelNode(text: "TAP / A ACCEPT  ·  HOLD / B CANCEL")
         hint.fontName = "AvenirNext-Regular"
         hint.fontSize = 8
         hint.fontColor = SKColor(white: 0.55, alpha: 1)
-        hint.position = CGPoint(x: x, y: y - 104)
+        hint.position = CGPoint(x: x, y: y - 92)
         hint.verticalAlignmentMode = .top
         slotsLayer.addChild(hint)
     }
@@ -1061,7 +1117,7 @@ final class TitleScene: SKScene {
         caret.position = CGPoint(x: startX + CGFloat(cursor) * advance, y: y - 92)
         slotsLayer.addChild(caret)
 
-        let hint = SKLabelNode(text: "↑↓ CYCLE  ◀▶ MOVE  X TYPE  A DONE")
+        let hint = SKLabelNode(text: "\u{2191}\u{2193} CYCLE  \u{2190}\u{2192} MOVE  X TYPE  A DONE")
         hint.fontName = "AvenirNext-Regular"
         hint.fontSize = 8
         hint.fontColor = SKColor(white: 0.55, alpha: 1)
@@ -1076,10 +1132,10 @@ final class TitleScene: SKScene {
     private func renderCyclerTouchButtons(centerX: CGFloat, baseY: CGFloat,
                                           slotIndex: Int) {
         let labels: [(Character, String)] = [
-            ("◀", "cyclerBtnLeft"),
-            ("↑", "cyclerBtnCycleFwd"),
-            ("↓", "cyclerBtnCycleBack"),
-            ("▶", "cyclerBtnRight"),
+            ("\u{2190}", "cyclerBtnLeft"),
+            ("\u{2191}", "cyclerBtnCycleFwd"),
+            ("\u{2193}", "cyclerBtnCycleBack"),
+            ("\u{2192}", "cyclerBtnRight"),
             ("⏎", "cyclerBtnCommit"),
             ("✓", "cyclerBtnConfirm")
         ]
