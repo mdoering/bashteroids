@@ -84,6 +84,13 @@ final class HelpScene: SKScene {
         KeyboardManager.shared.onKeyDown = { [weak self] code in
             self?.handleKeyDown(code)
         }
+
+        // Seed prevPressed from the current held state so the A press that
+        // opened this scene (still held on frame 1) doesn't immediately bounce
+        // back to the title.
+        for c in manager.connectedControllers {
+            prevPressed[ObjectIdentifier(c)] = anyButtonPressed(c)
+        }
     }
 
     private func renderControllerSection(labelX: CGFloat, valueX: CGFloat, topY: CGFloat) {
@@ -95,9 +102,10 @@ final class HelpScene: SKScene {
             ("Brake",      "B / R-stick down"),
             ("Fire",       "X / R-shoulder"),
             ("Deploy",     "Y"),
-            ("Join",       "A"),
-            ("Edit name",  "A (claimed)"),
-            ("Leave slot", "B (claimed)"),
+            ("Join",       "A (auto leftmost)"),
+            ("Pick color", "\u{25C0}\u{25B6} then A"),
+            ("Type name",  "X (insert)  A (done)"),
+            ("Leave slot", "B (any phase)"),
             ("Begin game", "Menu / X / Play-Pause")
         ] {
             addLeftRow(label: label, value: value, labelX: labelX, valueX: valueX, y: y)
@@ -113,9 +121,11 @@ final class HelpScene: SKScene {
             ("Thrust",     "\u{2191}"),
             ("Brake",      "\u{2193}"),
             ("Fire",       "Space"),
-            ("Deploy",     "M"),
+            ("Deploy",     "D"),
             ("Join",       "A / Enter"),
-            ("Edit name",  "Enter"),
+            ("Pick color", "\u{2190}\u{2192} then Enter"),
+            ("Type name",  "Letters / Enter"),
+            ("Leave slot", "Esc / B"),
             ("Begin game", "Space")
         ] {
             addRightRow(label: label, value: value, labelX: labelX, valueX: valueX, y: y)

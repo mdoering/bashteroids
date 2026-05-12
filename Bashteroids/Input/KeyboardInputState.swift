@@ -3,10 +3,10 @@ import GameController
 
 final class KeyboardInputState {
     private var spaceEdge = false
-    private var mEdge = false
+    private var deployEdge = false
 
-    func spaceDown() { spaceEdge = true }
-    func mPressed()  { mEdge = true }
+    func spaceDown()     { spaceEdge = true }
+    func deployPressed() { deployEdge = true }
 
     func snapshot() -> PlayerInput {
         let kb = GCKeyboard.coalesced?.keyboardInput
@@ -16,7 +16,7 @@ final class KeyboardInputState {
         let downHeld  = kb?.button(forKeyCode: .downArrow)?.isPressed  ?? false
 
         let fire = spaceEdge; spaceEdge = false
-        let mine = mEdge;     mEdge     = false
+        let mine = deployEdge; deployEdge = false
         let turn: CGFloat = rightHeld ? 1 : (leftHeld ? -1 : 0)
         return PlayerInput(turn: turn,
                            thrust: upHeld,
@@ -27,6 +27,6 @@ final class KeyboardInputState {
 
     func releaseAll() {
         spaceEdge = false
-        mEdge     = false
+        deployEdge = false
     }
 }

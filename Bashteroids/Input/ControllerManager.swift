@@ -93,11 +93,30 @@ final class ControllerManager {
         }
     }
 
+    /// Update the color of an already-claimed slot. Used by the title scene
+    /// while the joining player is in the color-pick phase. Pure mutator —
+    /// the caller is responsible for re-rendering. (Firing onSlotsChanged
+    /// here would recurse during the join → enterColorPicker → setColor →
+    /// onSlotsChanged path.)
+    func setColor(at index: Int, to color: SKColor) {
+        guard let i = slots.firstIndex(where: { $0.index == index }) else { return }
+        slots[i].color = color
+    }
+
     func releaseAllSlots() {
         slots.removeAll()
         for c in connectedControllers {
             installJoinHandler(c)
         }
+        TouchOverlayState.shared.recompute()
+        onSlotsChanged?()
+    }
+
+    /// Release the keyboard player's slot, if any. Used by the title scene
+    /// when the keyboard player presses Esc mid-claim.
+    func releaseKeyboardSlot() {
+        guard hasKeyboardPlayer else { return }
+        slots.removeAll { $0.keyboard != nil }
         TouchOverlayState.shared.recompute()
         onSlotsChanged?()
     }

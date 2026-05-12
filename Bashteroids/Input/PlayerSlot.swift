@@ -11,7 +11,7 @@ struct PlayerInput {
 
 final class PlayerSlot {
     let index: Int
-    let color: SKColor
+    var color: SKColor
     weak var controller: GCController?
     let keyboard: KeyboardInputState?
     let touchInput: TouchInputState?

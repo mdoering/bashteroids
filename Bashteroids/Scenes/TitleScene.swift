@@ -3,6 +3,7 @@ import GameController
 
 final class TitleScene: SKScene {
     private static let accentGold = SKColor(red: 245/255, green: 194/255, blue: 66/255, alpha: 1)
+    private static let unclaimedRingColor = SKColor(white: 0.35, alpha: 1)
 
     private let manager = ControllerManager.shared
     private let slotsLayer = SKNode()
@@ -12,13 +13,27 @@ final class TitleScene: SKScene {
     private var aWasPressed: [ObjectIdentifier: Bool] = [:]
     private var bWasPressed: [ObjectIdentifier: Bool] = [:]
     private var yWasPressed: [ObjectIdentifier: Bool] = [:]
-    private var activeNameSlot: Int? = nil
-    private var nameBuffer: String = ""
-    /// Cycler cursor — position 0...nameBuffer.count where the live char floats.
-    private var cyclerCursor: Int = 0
-    /// Cycler live-character index (0..28). 0 = 'A', 26 = '.', 27 = '-',
-    /// 28 = SPACE. The backspace sentinel is index 29 — the last entry.
-    private var cyclerCharIndex: Int = 0
+
+    // MARK: - Per-slot claim state
+    //
+    // A slot is in `pickingColor` once a controller (or keyboard / touch) has
+    // claimed it — the slot is in `manager.slots` already, but the player is
+    // still choosing a color. `pickingColor[idx]` holds the palette index
+    // (0..3) of the candidate. On A-confirm the slot transitions to
+    // `nameEditing[idx]` (cycler editor open); on a second A-confirm the
+    // slot drops both dicts and becomes fully claimed-idle.
+    //
+    // Multiple slots can be in either phase simultaneously — each player's
+    // input is routed through their own slot's state.
+
+    private var pickingColor: [Int: Int] = [:]
+    private struct NameEditState {
+        var buffer: String = ""
+        var cursor: Int = 0
+        var charIndex: Int = 0
+    }
+    private var nameEditing: [Int: NameEditState] = [:]
+
     /// 30-entry alphabet: A-Z (0-25), period (26), hyphen (27), space (28),
     /// backspace sentinel (29). The backspace entry is at the end so
     /// reverse-cycling from index 0 lands on it first, per the user's spec.
@@ -35,25 +50,20 @@ final class TitleScene: SKScene {
     }()
     private static let cyclerBackspaceIndex: Int = 29
     private static let cyclerAlphabetCount: Int = 30
+
     private var prevClaimedIndices: Set<Int> = []
-    private var slotAWasPressed: [Int: Bool] = [:]
     private var selectedLevel: Int = GameSettings.lastPlayedLevel
     private var selectedMode: GameMode = GameSettings.lastMode
     private var selectedDensity: PowerUpDensity = GameSettings.sessionPowerUpDensity
     private var selectedAudio: AudioMode = GameSettings.audioMode
 
+    // Focus lives only on the right-side menu now; slot tiles are not
+    // focusable. Left/right directly cycles the focused selector — no
+    // edit-mode toggle.
     private enum FocusItem: CaseIterable {
-        case slot0, slot1, slot2, slot3
         case mode, level, density, audio, help, start
     }
-    private var focused: FocusItem = .slot0
-    /// Remembers the slot column the user last visited, so up-arrowing back
-    /// from the selector column lands on the same slot rather than always 0.
-    private var lastSlotFocusIndex: Int = 0
-    /// When true, left/right cycles the focused selector's value instead of
-    /// navigating focus. Toggled by A/Enter on a selector. Slot tiles, help,
-    /// and start are not "editable" — they ignore this flag.
-    private var editingSelector: Bool = false
+    private var focused: FocusItem = .start
 
     private var modeLabel: SKLabelNode!
     private var levelLabel: SKLabelNode!
@@ -105,9 +115,6 @@ final class TitleScene: SKScene {
             MainActor.assumeIsolated { self.handleTouchSwipe(at: location, direction: direction) }
         }
 
-        // Poster background — aspect-fill so the landscape image covers the
-        // whole screen on any aspect ratio (iPad 4:3 crops sides slightly,
-        // 16:9 displays fit exactly).
         let posterTexture = SKTexture(imageNamed: "Splash")
         let imgSize = posterTexture.size()
         let scale = max(size.width / imgSize.width, size.height / imgSize.height)
@@ -145,7 +152,6 @@ final class TitleScene: SKScene {
         heading.verticalAlignmentMode = .top
         heading.position = CGPoint(x: leaderboardX, y: topAnchorY)
         addChild(heading)
-        // Scale heading font up so its rendered width matches the table width below.
         if heading.frame.width > 0 {
             heading.fontSize *= tableWidth / heading.frame.width
         }
@@ -185,102 +191,26 @@ final class TitleScene: SKScene {
             addChild(scoreLabel)
         }
 
-        // Selectors anchored top-right with the same edgeMargin and topAnchorY
-        // as the highscore column, so both blocks align at the top with
-        // matching border spacing.
         let arrowGap: CGFloat = 14
-        let valueHalfWidth: CGFloat = 60   // half of widest value ("SURVIVAL" / "LEVEL 9") at 26pt bold
-        let selectorRightX = size.width - edgeMargin       // right edge of the > arrow
-        let selectorCenterX = selectorRightX - 12 - arrowGap - valueHalfWidth   // center of the value label
+        let valueHalfWidth: CGFloat = 60
+        let selectorRightX = size.width - edgeMargin
+        let selectorCenterX = selectorRightX - 12 - arrowGap - valueHalfWidth
         let modeY  = topAnchorY
         let levelY = topAnchorY - 50
         let densityY = levelY - 50
         let densityCaptionY = densityY - 28
-        let battleHintY = densityCaptionY - 30
 
-        let modeLeft = SKLabelNode(text: "<")
-        modeLeft.fontName = "AvenirNext-Regular"
-        modeLeft.fontSize = 22
-        modeLeft.fontColor = TitleScene.accentGold
-        modeLeft.verticalAlignmentMode = .top
-        modeLeft.horizontalAlignmentMode = .right
-        modeLeft.position = CGPoint(x: selectorCenterX - valueHalfWidth - arrowGap, y: modeY)
-        addChild(modeLeft)
-        self.modeLeftArrow = modeLeft
+        modeLeftArrow = makeSelectorArrow("<", x: selectorCenterX - valueHalfWidth - arrowGap, y: modeY)
+        modeRightArrow = makeSelectorArrow(">", x: selectorRightX, y: modeY)
+        modeLabel = makeSelectorValue(x: selectorCenterX, y: modeY)
 
-        let modeRight = SKLabelNode(text: ">")
-        modeRight.fontName = "AvenirNext-Regular"
-        modeRight.fontSize = 22
-        modeRight.fontColor = TitleScene.accentGold
-        modeRight.verticalAlignmentMode = .top
-        modeRight.horizontalAlignmentMode = .right
-        modeRight.position = CGPoint(x: selectorRightX, y: modeY)
-        addChild(modeRight)
-        self.modeRightArrow = modeRight
+        levelLeftArrow = makeSelectorArrow("<", x: selectorCenterX - valueHalfWidth - arrowGap, y: levelY)
+        levelRightArrow = makeSelectorArrow(">", x: selectorRightX, y: levelY)
+        levelLabel = makeSelectorValue(x: selectorCenterX, y: levelY)
 
-        let mode = SKLabelNode(text: "")
-        mode.fontName = "AvenirNext-Bold"
-        mode.fontSize = 26
-        mode.verticalAlignmentMode = .top
-        mode.position = CGPoint(x: selectorCenterX, y: modeY)
-        addChild(mode)
-        self.modeLabel = mode
-
-        let levelLeft = SKLabelNode(text: "<")
-        levelLeft.fontName = "AvenirNext-Regular"
-        levelLeft.fontSize = 22
-        levelLeft.fontColor = TitleScene.accentGold
-        levelLeft.verticalAlignmentMode = .top
-        levelLeft.horizontalAlignmentMode = .right
-        levelLeft.position = CGPoint(x: selectorCenterX - valueHalfWidth - arrowGap, y: levelY)
-        addChild(levelLeft)
-        self.levelLeftArrow = levelLeft
-
-        let levelRight = SKLabelNode(text: ">")
-        levelRight.fontName = "AvenirNext-Regular"
-        levelRight.fontSize = 22
-        levelRight.fontColor = TitleScene.accentGold
-        levelRight.verticalAlignmentMode = .top
-        levelRight.horizontalAlignmentMode = .right
-        levelRight.position = CGPoint(x: selectorRightX, y: levelY)
-        addChild(levelRight)
-        self.levelRightArrow = levelRight
-
-        let level = SKLabelNode(text: "")
-        level.fontName = "AvenirNext-Bold"
-        level.fontSize = 26
-        level.verticalAlignmentMode = .top
-        level.position = CGPoint(x: selectorCenterX, y: levelY)
-        addChild(level)
-        self.levelLabel = level
-
-        let densityLeft = SKLabelNode(text: "<")
-        densityLeft.fontName = "AvenirNext-Regular"
-        densityLeft.fontSize = 22
-        densityLeft.fontColor = TitleScene.accentGold
-        densityLeft.verticalAlignmentMode = .top
-        densityLeft.horizontalAlignmentMode = .right
-        densityLeft.position = CGPoint(x: selectorCenterX - valueHalfWidth - arrowGap, y: densityY)
-        addChild(densityLeft)
-        self.densityLeftArrow = densityLeft
-
-        let densityRight = SKLabelNode(text: ">")
-        densityRight.fontName = "AvenirNext-Regular"
-        densityRight.fontSize = 22
-        densityRight.fontColor = TitleScene.accentGold
-        densityRight.verticalAlignmentMode = .top
-        densityRight.horizontalAlignmentMode = .right
-        densityRight.position = CGPoint(x: selectorRightX, y: densityY)
-        addChild(densityRight)
-        self.densityRightArrow = densityRight
-
-        let densityValue = SKLabelNode(text: "")
-        densityValue.fontName = "AvenirNext-Bold"
-        densityValue.fontSize = 26
-        densityValue.verticalAlignmentMode = .top
-        densityValue.position = CGPoint(x: selectorCenterX, y: densityY)
-        addChild(densityValue)
-        self.densityLabel = densityValue
+        densityLeftArrow = makeSelectorArrow("<", x: selectorCenterX - valueHalfWidth - arrowGap, y: densityY)
+        densityRightArrow = makeSelectorArrow(">", x: selectorRightX, y: densityY)
+        densityLabel = makeSelectorValue(x: selectorCenterX, y: densityY)
 
         let densityCap = SKLabelNode(text: "POWERUPS")
         densityCap.fontName = "AvenirNext-Regular"
@@ -291,12 +221,15 @@ final class TitleScene: SKScene {
         addChild(densityCap)
         self.densityCaption = densityCap
 
+        // Battle-needs-2 hint sits below the slot row, centered. Hidden by
+        // default; flashBattleHint() pulses it in (and pulses the slot tiles)
+        // when the user tries to start BATTLE without enough players.
         let battleHint = SKLabelNode(text: "BATTLE NEEDS 2+ PLAYERS")
-        battleHint.fontName = "AvenirNext-Regular"
-        battleHint.fontSize = 12
-        battleHint.fontColor = SKColor(red: 0.7, green: 0.4, blue: 0.4, alpha: 1)
+        battleHint.fontName = "AvenirNext-Bold"
+        battleHint.fontSize = 14
+        battleHint.fontColor = SKColor(red: 0.85, green: 0.45, blue: 0.45, alpha: 1)
         battleHint.verticalAlignmentMode = .top
-        battleHint.position = CGPoint(x: selectorCenterX, y: battleHintY)
+        battleHint.position = CGPoint(x: size.width / 2, y: size.height * 0.46 - 98)
         battleHint.alpha = 0
         addChild(battleHint)
         self.battleHintLabel = battleHint
@@ -310,38 +243,10 @@ final class TitleScene: SKScene {
         addChild(helpL)
         self.helpLabel = helpL
 
-        // Audio selector — bottom of the right-side selector column,
-        // below the (mostly invisible) battle hint, mirroring the other
-        // right-aligned selectors.
-        let audioY = battleHintY - 50
-
-        let audioLeft = SKLabelNode(text: "<")
-        audioLeft.fontName = "AvenirNext-Regular"
-        audioLeft.fontSize = 22
-        audioLeft.fontColor = TitleScene.accentGold
-        audioLeft.verticalAlignmentMode = .top
-        audioLeft.horizontalAlignmentMode = .right
-        audioLeft.position = CGPoint(x: selectorCenterX - valueHalfWidth - arrowGap, y: audioY)
-        addChild(audioLeft)
-        self.audioLeftArrow = audioLeft
-
-        let audioRight = SKLabelNode(text: ">")
-        audioRight.fontName = "AvenirNext-Regular"
-        audioRight.fontSize = 22
-        audioRight.fontColor = TitleScene.accentGold
-        audioRight.verticalAlignmentMode = .top
-        audioRight.horizontalAlignmentMode = .right
-        audioRight.position = CGPoint(x: selectorRightX, y: audioY)
-        addChild(audioRight)
-        self.audioRightArrow = audioRight
-
-        let audioValue = SKLabelNode(text: "")
-        audioValue.fontName = "AvenirNext-Bold"
-        audioValue.fontSize = 26
-        audioValue.verticalAlignmentMode = .top
-        audioValue.position = CGPoint(x: selectorCenterX, y: audioY)
-        addChild(audioValue)
-        self.audioLabel = audioValue
+        let audioY = densityCaptionY - 80
+        audioLeftArrow = makeSelectorArrow("<", x: selectorCenterX - valueHalfWidth - arrowGap, y: audioY)
+        audioRightArrow = makeSelectorArrow(">", x: selectorRightX, y: audioY)
+        audioLabel = makeSelectorValue(x: selectorCenterX, y: audioY)
 
         let audioCap = SKLabelNode(text: "AUDIO")
         audioCap.fontName = "AvenirNext-Regular"
@@ -355,14 +260,22 @@ final class TitleScene: SKScene {
         renderSelectors()
 
         addChild(slotsLayer)
+        prevClaimedIndices = Set(manager.slots.map { $0.index })
         renderSlots()
 
         manager.onSlotsChanged = { [weak self] in
             guard let self else { return }
-            // Slot claims keep the previously stored name (or "P\(idx+1)"
-            // on first launch). The name editor only opens when the player
-            // explicitly asks for it via focus + A on their own tile.
-            self.prevClaimedIndices = Set(self.manager.slots.map { $0.index })
+            let now = Set(self.manager.slots.map { $0.index })
+            let newly = now.subtracting(self.prevClaimedIndices)
+            let released = self.prevClaimedIndices.subtracting(now)
+            for idx in newly {
+                self.enterColorPicker(slot: idx)
+            }
+            for idx in released {
+                self.pickingColor.removeValue(forKey: idx)
+                self.nameEditing.removeValue(forKey: idx)
+            }
+            self.prevClaimedIndices = now
             self.renderSlots()
             self.renderSelectors()
         }
@@ -371,6 +284,21 @@ final class TitleScene: SKScene {
 
         KeyboardManager.shared.onKeyDown = { [weak self] code in
             self?.handleKeyDown(code)
+        }
+
+        // Seed per-controller button-state dicts from the currently-held
+        // state so a button held across a scene transition (e.g. user A's
+        // press that returned them here from help / game-over) doesn't fire
+        // a spurious edge on frame 1.
+        for c in manager.connectedControllers {
+            let id = ObjectIdentifier(c)
+            aWasPressed[id] = c.extendedGamepad?.buttonA.isPressed
+                ?? c.microGamepad?.buttonA.isPressed ?? false
+            xWasPressed[id] = c.extendedGamepad?.buttonX.isPressed
+                ?? c.microGamepad?.buttonX.isPressed ?? false
+            menuWasPressed[id] = c.extendedGamepad?.buttonMenu.isPressed ?? false
+            yWasPressed[id] = c.extendedGamepad?.buttonY.isPressed ?? false
+            bWasPressed[id] = c.extendedGamepad?.buttonB.isPressed ?? false
         }
     }
 
@@ -390,43 +318,197 @@ final class TitleScene: SKScene {
             NotificationCenter.default.removeObserver(obs)
             titleSwipeObserver = nil
         }
-        // Neither scene state nor music is mutated here — willMove(from:)
-        // on the old scene fires *after* didMove(to:) on the new scene in
-        // SpriteKit transitions, so changing global state here clobbers the
-        // next scene's setup. Each scene's didMove(to:) is responsible for
-        // its own audio + overlay state.
     }
+
+    private func makeSelectorArrow(_ glyph: String, x: CGFloat, y: CGFloat) -> SKLabelNode {
+        let n = SKLabelNode(text: glyph)
+        n.fontName = "AvenirNext-Regular"
+        n.fontSize = 22
+        n.fontColor = TitleScene.accentGold
+        n.verticalAlignmentMode = .top
+        n.horizontalAlignmentMode = .right
+        n.position = CGPoint(x: x, y: y)
+        addChild(n)
+        return n
+    }
+
+    private func makeSelectorValue(x: CGFloat, y: CGFloat) -> SKLabelNode {
+        let n = SKLabelNode(text: "")
+        n.fontName = "AvenirNext-Bold"
+        n.fontSize = 26
+        n.verticalAlignmentMode = .top
+        n.position = CGPoint(x: x, y: y)
+        addChild(n)
+        return n
+    }
+
+    // MARK: - Phase helpers
+
+    /// True when at least one slot is mid-claim. Blocks `tryStart` / `openHelp`
+    /// so half-claimed players don't get yanked into the game.
+    private var anyClaiming: Bool {
+        !pickingColor.isEmpty || !nameEditing.isEmpty
+    }
+
+    /// Palette indices currently locked by slots past the color-pick phase
+    /// (i.e. claimed-idle or in name-editing). Color-picking slots don't
+    /// lock — that's resolved at confirm time.
+    private func lockedColorIndices() -> Set<Int> {
+        var locked: Set<Int> = []
+        for slot in manager.slots where pickingColor[slot.index] == nil {
+            if let i = paletteIndex(of: slot.color) {
+                locked.insert(i)
+            }
+        }
+        return locked
+    }
+
+    private func paletteIndex(of color: SKColor) -> Int? {
+        ControllerManager.playerColors.firstIndex(where: { colorsEqual($0, color) })
+    }
+
+    private func colorsEqual(_ a: SKColor, _ b: SKColor) -> Bool {
+        var ar: CGFloat = 0, ag: CGFloat = 0, ab: CGFloat = 0, aa: CGFloat = 0
+        var br: CGFloat = 0, bg: CGFloat = 0, bb: CGFloat = 0, ba: CGFloat = 0
+        a.getRed(&ar, green: &ag, blue: &ab, alpha: &aa)
+        b.getRed(&br, green: &bg, blue: &bb, alpha: &ba)
+        return abs(ar - br) < 0.005 && abs(ag - bg) < 0.005 && abs(ab - bb) < 0.005
+    }
+
+    private func enterColorPicker(slot idx: Int) {
+        let palette = ControllerManager.playerColors
+        let locked = lockedColorIndices()
+        // Initial candidate: remembered (if free), else slot-index default
+        // (if free), else first free.
+        let remembered = UserDefaults.standard.object(forKey: "slot_color_\(idx)") as? Int
+        let candidates = ([remembered, idx] + Array(0..<palette.count)).compactMap { $0 }
+        let chosen = candidates.first(where: { $0 >= 0 && $0 < palette.count && !locked.contains($0) }) ?? 0
+        pickingColor[idx] = chosen
+        manager.setColor(at: idx, to: palette[chosen])
+    }
+
+    private func cycleColorCandidate(slot idx: Int, by delta: Int) {
+        guard var cur = pickingColor[idx] else { return }
+        let palette = ControllerManager.playerColors
+        let locked = lockedColorIndices()
+        let n = palette.count
+        for _ in 0..<n {
+            cur = ((cur + delta) % n + n) % n
+            if !locked.contains(cur) { break }
+        }
+        pickingColor[idx] = cur
+        manager.setColor(at: idx, to: palette[cur])
+        renderSlots()
+    }
+
+    private func confirmColorPick(slot idx: Int) {
+        guard let pal = pickingColor[idx] else { return }
+        pickingColor.removeValue(forKey: idx)
+        UserDefaults.standard.set(pal, forKey: "slot_color_\(idx)")
+        rebumpCandidatesAfterLock()
+        enterNameEditor(slot: idx)
+        renderSlots()
+    }
+
+    /// Advance any other picking slot whose candidate just got locked by a
+    /// peer's confirmation.
+    private func rebumpCandidatesAfterLock() {
+        let palette = ControllerManager.playerColors
+        let locked = lockedColorIndices()
+        for (slotIdx, candidate) in pickingColor where locked.contains(candidate) {
+            var next = candidate
+            for _ in 0..<palette.count {
+                next = (next + 1) % palette.count
+                if !locked.contains(next) { break }
+            }
+            pickingColor[slotIdx] = next
+            manager.setColor(at: slotIdx, to: palette[next])
+        }
+    }
+
+    private func enterNameEditor(slot idx: Int) {
+        let stored = UserDefaults.standard.string(forKey: "player_name_\(idx)") ?? "P\(idx + 1)"
+        let trimmed = String(stored.uppercased().prefix(8))
+        nameEditing[idx] = NameEditState(buffer: trimmed,
+                                          cursor: trimmed.count,
+                                          charIndex: 0)
+    }
+
+    private func confirmName(slot idx: Int) {
+        guard let st = nameEditing[idx] else { return }
+        let trimmed = st.buffer.trimmingCharacters(in: .whitespaces)
+        let previous = UserDefaults.standard.string(forKey: "player_name_\(idx)") ?? "P\(idx + 1)"
+        let name = trimmed.isEmpty ? previous : trimmed
+        UserDefaults.standard.set(name, forKey: "player_name_\(idx)")
+        RecentNames.record(name)
+        nameEditing.removeValue(forKey: idx)
+        renderSlots()
+    }
+
+    /// Cycle the live cycler character for `slot`.
+    private func cycleLiveChar(slot idx: Int, by delta: Int) {
+        guard var st = nameEditing[idx] else { return }
+        let count = TitleScene.cyclerAlphabetCount
+        st.charIndex = ((st.charIndex + delta) % count + count) % count
+        nameEditing[idx] = st
+        renderSlots()
+    }
+
+    /// Move the cursor within the buffer. The live character is preserved
+    /// across moves so a player parked on `⌫` (or any letter) can keep
+    /// committing without re-cycling.
+    private func moveCyclerCursor(slot idx: Int, by delta: Int) {
+        guard var st = nameEditing[idx] else { return }
+        let target = st.cursor + delta
+        st.cursor = max(0, min(st.buffer.count, target))
+        nameEditing[idx] = st
+        renderSlots()
+    }
+
+    /// Insert the live char at the cursor (delete if cycler is on `⌫`).
+    /// The live char is preserved after insertion.
+    private func insertLiveChar(slot idx: Int) {
+        guard var st = nameEditing[idx] else { return }
+        if st.charIndex == TitleScene.cyclerBackspaceIndex {
+            guard st.cursor > 0 else { return }
+            let removeAt = st.buffer.index(st.buffer.startIndex, offsetBy: st.cursor - 1)
+            st.buffer.remove(at: removeAt)
+            st.cursor -= 1
+        } else {
+            guard st.buffer.count < 8 else { return }
+            let ch = TitleScene.cyclerAlphabet[st.charIndex]
+            let insertAt = st.buffer.index(st.buffer.startIndex, offsetBy: st.cursor)
+            st.buffer.insert(ch, at: insertAt)
+            st.cursor += 1
+        }
+        nameEditing[idx] = st
+        renderSlots()
+    }
+
+    // MARK: - Touch
 
     /// Hit-test the title-scene's interactive elements against a SwiftUI-
     /// forwarded tap location (already in scene coords).
-    ///
-    /// Priority:
-    ///   1. Empty slot tile → claim for the touch player.
-    ///   2. Help label → openHelp().
-    ///   3. Join hint at the bottom → tryStart() (acts as a touchable
-    ///      "PRESS A TO JOIN · START / SPACE TO BEGIN" link).
-    ///   4. Selector left arrow / right arrow → focus that selector and
-    ///      cycle in that direction.
-    ///   5. Selector value or caption → focus that selector (no cycle).
     private func handleTouchTap(at point: CGPoint) {
-        // Cycler touch buttons take precedence whenever the editor is open.
-        if activeNameSlot != nil, handleCyclerTouchTap(at: point) { return }
-
-        if !manager.hasTouchPlayer,
-           let i = slotTileIndex(at: point),
-           manager.emptySlotIndices().contains(i) {
-            manager.claimTouch(atSlot: i)
+        // Cycler touch buttons take precedence whenever the touch player's
+        // editor is open.
+        if let touchSlot = manager.slots.first(where: { $0.touchInput != nil })?.index,
+           nameEditing[touchSlot] != nil,
+           handleCyclerTouchTap(at: point, slot: touchSlot) {
             return
         }
 
-        // Tapping the touch player's own slot leaves it. Long-press still
-        // opens the name editor (see handleTouchLongPress).
-        if activeNameSlot == nil,
-           let i = slotTileIndex(at: point),
-           let slot = manager.slots.first(where: { $0.index == i }),
-           slot.touchInput != nil {
-            manager.releaseTouchSlot()
-            return
+        // Tap on a slot tile: claim if empty (and we don't have a touch player
+        // yet), or release if it's the current touch player's tile.
+        if let i = slotTileIndex(at: point) {
+            if let slot = manager.slots.first(where: { $0.index == i }), slot.touchInput != nil {
+                manager.releaseTouchSlot()
+                return
+            }
+            if !manager.hasTouchPlayer, manager.emptySlotIndices().contains(i) {
+                manager.claimTouch(atSlot: i)
+                return
+            }
         }
 
         let hitPad: CGFloat = 12
@@ -474,8 +556,6 @@ final class TitleScene: SKScene {
         }
     }
 
-    /// Returns the selector FocusItem whose value/arrow region contains
-    /// `point`, or `nil` if none matches.
     private func selectorAt(_ point: CGPoint) -> FocusItem? {
         let hitPad: CGFloat = 12
         let selectors: [(FocusItem, SKLabelNode, SKLabelNode, SKLabelNode, SKLabelNode?)] = [
@@ -497,41 +577,35 @@ final class TitleScene: SKScene {
         return nil
     }
 
-    /// Touch swipe handler: a horizontal swipe over a selector tile cycles
-    /// its value. Direction is +1 (right) or -1 (left).
     private func handleTouchSwipe(at point: CGPoint, direction: Int) {
-        guard activeNameSlot == nil,
-              let item = selectorAt(point) else { return }
+        guard let item = selectorAt(point) else { return }
         focused = item
         cycleSelectorValue(item, by: direction > 0 ? 1 : -1)
         renderSelectors()
     }
 
-    /// Long-press on a claimed touch slot opens the in-tile cycler editor
-    /// for the touch player.
+    /// Long-press on a touch slot has no special meaning in the new flow.
+    /// (Name editing is part of the join flow; to rename, the touch player
+    /// taps to release and re-claims.)
     private func handleTouchLongPress(at point: CGPoint) {
-        guard activeNameSlot == nil,
-              let i = slotTileIndex(at: point),
-              let slot = manager.slots.first(where: { $0.index == i }),
-              slot.touchInput != nil else { return }
-        openNameEditor(forSlot: i)
+        _ = point
     }
 
-    /// Hit-test the cycler touch button row. Returns `true` if a button was
-    /// hit and dispatched (so the outer tap handler can short-circuit).
-    private func handleCyclerTouchTap(at point: CGPoint) -> Bool {
+    /// Hit-test the cycler touch button row for `slot`. Returns true if a
+    /// button was dispatched.
+    private func handleCyclerTouchTap(at point: CGPoint, slot idx: Int) -> Bool {
         let hitPad: CGFloat = 8
         for node in slotsLayer.children {
             guard let name = node.name,
                   name.hasPrefix("cyclerBtn"),
                   node.frame.insetBy(dx: -hitPad, dy: -hitPad).contains(point) else { continue }
             switch name {
-            case "cyclerBtnLeft":      moveCyclerCursor(by: -1)
-            case "cyclerBtnRight":     moveCyclerCursor(by:  1)
-            case "cyclerBtnCycleFwd":  cycleLiveChar(by:  1)
-            case "cyclerBtnCycleBack": cycleLiveChar(by: -1)
-            case "cyclerBtnCommit":    commitLiveChar()
-            case "cyclerBtnConfirm":   confirmName()
+            case "cyclerBtnLeft":      moveCyclerCursor(slot: idx, by: -1)
+            case "cyclerBtnRight":     moveCyclerCursor(slot: idx, by:  1)
+            case "cyclerBtnCycleFwd":  cycleLiveChar(slot: idx, by:  1)
+            case "cyclerBtnCycleBack": cycleLiveChar(slot: idx, by: -1)
+            case "cyclerBtnCommit":    insertLiveChar(slot: idx)
+            case "cyclerBtnConfirm":   confirmName(slot: idx)
             default: break
             }
             return true
@@ -556,8 +630,10 @@ final class TitleScene: SKScene {
         return nil
     }
 
+    // MARK: - Start / Help
+
     private func tryStart() {
-        guard !transitioning, activeNameSlot == nil else { return }
+        guard !transitioning, !anyClaiming else { return }
         if manager.slots.isEmpty {
             flashJoinSlots()
             return
@@ -577,50 +653,26 @@ final class TitleScene: SKScene {
     }
 
     private func openHelp() {
-        guard !transitioning, activeNameSlot == nil else { return }
+        guard !transitioning, !anyClaiming else { return }
         transitioning = true
         let help = HelpScene(size: size)
         help.scaleMode = scaleMode
         view?.presentScene(help, transition: .fade(withDuration: 0.3))
     }
 
+    // MARK: - Per-frame controller polling
+
     override func update(_ currentTime: TimeInterval) {
         guard !transitioning else { return }
 
-        let nameEntryActive = activeNameSlot != nil
-
-        // While name entry is active, a rising-edge A on any claimed
-        // controller confirms the entry — gives controller-only setups a way
-        // out without a keyboard. When name entry is not active, A is routed
-        // through the focus-confirm path further down.
-        //
-        // When confirmName fires, also pre-set this controller's
-        // aWasPressed[id] so the same A press doesn't ALSO trigger
-        // confirmFocused below — that would re-open the editor immediately
-        // because the controller is now claimed at the focused slot.
-        for (i, slot) in manager.slots.enumerated() {
-            let pressed = slot.controller?.extendedGamepad?.buttonA.isPressed
-                ?? slot.controller?.microGamepad?.buttonA.isPressed
-                ?? false
-            let was = slotAWasPressed[i] ?? false
-            slotAWasPressed[i] = pressed
-            if nameEntryActive, pressed && !was, slot.index == activeNameSlot {
-                // The editing player's A press commits the live cycler char.
-                // Pre-set the controller's aWasPressed to prevent the
-                // controllers loop below from also firing confirmFocused on
-                // the same press.
-                commitLiveChar()
-                if let c = slot.controller {
-                    aWasPressed[ObjectIdentifier(c)] = pressed
-                }
-            }
-        }
-
         for c in manager.connectedControllers {
             let id = ObjectIdentifier(c)
+            let myIdx = manager.slot(for: c)?.index
+            let myPickIdx: Int? = myIdx.flatMap { pickingColor[$0] != nil ? $0 : nil }
+            let myEditIdx: Int? = myIdx.flatMap { nameEditing[$0] != nil ? $0 : nil }
+            let midClaim = myPickIdx != nil || myEditIdx != nil
 
-            // D-pad selector input. Treat extendedGamepad and microGamepad
-            // d-pads identically. Edge-trigger so a held d-pad doesn't spin.
+            // --- D-pad: edge-trigger ---
             let dx: Float
             let dy: Float
             if let gp = c.extendedGamepad {
@@ -637,176 +689,183 @@ final class TitleScene: SKScene {
                         right: dx >  0.5,
                         up:    dy >  0.5,
                         down:  dy < -0.5)
-            let nameEntryActive: Bool = activeNameSlot != nil
-            if !nameEntryActive {
+
+            if let pickIdx = myPickIdx {
+                if curr.left  && !prev.left  { cycleColorCandidate(slot: pickIdx, by: -1) }
+                if curr.right && !prev.right { cycleColorCandidate(slot: pickIdx, by:  1) }
+            } else if let editIdx = myEditIdx {
+                if curr.up    && !prev.up    { cycleLiveChar(slot: editIdx, by:  1) }
+                if curr.down  && !prev.down  { cycleLiveChar(slot: editIdx, by: -1) }
+                if curr.left  && !prev.left  { moveCyclerCursor(slot: editIdx, by: -1) }
+                if curr.right && !prev.right { moveCyclerCursor(slot: editIdx, by:  1) }
+            } else {
                 if curr.up    && !prev.up    { moveFocus(by: -1) }
                 if curr.down  && !prev.down  { moveFocus(by:  1) }
-                if curr.left  && !prev.left  { cycleFocusedHorizontal(by: -1) }
-                if curr.right && !prev.right { cycleFocusedHorizontal(by:  1) }
-
-                // Keep this controller's intendedSlot aligned with the focus
-                // when it lands on a slot tile — drives the preview marker
-                // and the join handler's claim target.
-                if curr.up != prev.up || curr.down != prev.down
-                   || curr.left != prev.left || curr.right != prev.right {
-                    syncIntendedSlot(controller: c)
-                }
-            } else if let editing = activeNameSlot,
-                      manager.slot(for: c)?.index == editing {
-                // Editing player's d-pad: ↑/↓ cycle the live char,
-                // ←/→ move the cursor.
-                if curr.up    && !prev.up    { cycleLiveChar(by:  1) }
-                if curr.down  && !prev.down  { cycleLiveChar(by: -1) }
-                if curr.left  && !prev.left  { moveCyclerCursor(by: -1) }
-                if curr.right && !prev.right { moveCyclerCursor(by:  1) }
+                if curr.left  && !prev.left  { cycleFocusedSelector(by: -1) }
+                if curr.right && !prev.right { cycleFocusedSelector(by:  1) }
             }
             dpadEdge[id] = curr
 
-            // Menu button: Siri Remote's Menu is system-reserved (returns to
-            // home screen). Only poll it for MFi controllers. While name
-            // entry is open, Menu confirms the name instead of starting.
+            // --- Menu (MFi only — Siri Remote's Menu is system-reserved) ---
             let menuPressed = c.extendedGamepad?.buttonMenu.isPressed ?? false
             let menuWas = menuWasPressed[id] ?? false
             if menuPressed && !menuWas {
-                if nameEntryActive {
-                    if manager.slot(for: c)?.index == activeNameSlot { confirmName() }
-                } else {
-                    tryStart()
-                    break
-                }
+                if let editIdx = myEditIdx { confirmName(slot: editIdx) }
+                else if let pickIdx = myPickIdx { confirmColorPick(slot: pickIdx) }
+                else { tryStart() }
             }
             menuWasPressed[id] = menuPressed
 
-            // X / Play-Pause: starts the game; while name entry is open it
-            // confirms the editing player's name (same role as keyboard
-            // Enter / MFi Y).
+            // --- X / Play-Pause ---
+            // In name-edit phase on the editing player's own slot: insert the
+            // live char. Otherwise: begin-game shortcut (or color confirm).
             let xPressed = c.extendedGamepad?.buttonX.isPressed
                 ?? c.microGamepad?.buttonX.isPressed
                 ?? false
             let xWas = xWasPressed[id] ?? false
             if xPressed && !xWas {
-                if nameEntryActive {
-                    if manager.slot(for: c)?.index == activeNameSlot { confirmName() }
+                if let editIdx = myEditIdx {
+                    insertLiveChar(slot: editIdx)
+                } else if let pickIdx = myPickIdx {
+                    confirmColorPick(slot: pickIdx)
                 } else {
                     tryStart()
-                    break
                 }
             }
             xWasPressed[id] = xPressed
 
-            // Y button: alternative confirm during name entry (no-op
-            // otherwise). MFi only — Siri Remote has no Y.
+            // --- Y (MFi only) ---
+            // Y confirms the name during name-edit. Outside name-edit it's a
+            // no-op (Y is the in-game minelayer).
             let yPressed = c.extendedGamepad?.buttonY.isPressed ?? false
             let yWas = yWasPressed[id] ?? false
-            if yPressed && !yWas
-                && nameEntryActive
-                && manager.slot(for: c)?.index == activeNameSlot {
-                confirmName()
+            if yPressed && !yWas, let editIdx = myEditIdx {
+                confirmName(slot: editIdx)
             }
             yWasPressed[id] = yPressed
 
-            // B button (extended controllers only — Siri Remote has no B):
-            // when this controller has claimed a slot, B releases it.
+            // --- B (MFi only — Siri Remote has no B) ---
+            // B releases the slot at any phase (pickColor, nameEdit, idle).
             let bPressed = c.extendedGamepad?.buttonB.isPressed ?? false
             let bWas = bWasPressed[id] ?? false
-            if bPressed && !bWas
-                && manager.slot(for: c) != nil
-                && !nameEntryActive {
+            if bPressed && !bWas, manager.slot(for: c) != nil {
                 manager.releaseSlot(for: c)
                 bWasPressed[id] = bPressed
                 break
             }
             bWasPressed[id] = bPressed
 
-            // Claimed controllers: A = "confirm focused" — cycles a selector,
-            // opens help, starts the game, or (if focus is on this
-            // controller's own slot) opens the name editor.
-            // Unclaimed controllers' A is handled by ControllerManager's
-            // join handler at the controller's intendedSlot — which we keep
-            // pinned to the shared focus when focus is on a slot tile.
-            // aWasPressed is updated unconditionally so a held A-press
-            // across the unclaimed→claimed transition doesn't mis-fire on
-            // the first frame post-claim.
+            // --- A ---
+            // Unclaimed controllers' A is wired through ControllerManager's
+            // installJoinHandler (pressedChangedHandler). For claimed
+            // controllers: A confirms the current phase (color → name → done),
+            // and on a fully-claimed-idle controller it triggers the focused
+            // menu item (help/start) — selectors are no-ops since ◀▶ cycles
+            // them directly.
+            // aWasPressed is updated unconditionally so a held A across the
+            // unclaimed → claimed transition doesn't mis-fire on the first
+            // post-claim frame.
             let aPressed = c.extendedGamepad?.buttonA.isPressed
                 ?? c.microGamepad?.buttonA.isPressed
                 ?? false
             let aWas = aWasPressed[id] ?? false
-            if aPressed && !aWas
-                && manager.slot(for: c) != nil
-                && !nameEntryActive
-            {
-                confirmFocused(byController: c)
+            if aPressed && !aWas, manager.slot(for: c) != nil {
+                if let pickIdx = myPickIdx {
+                    confirmColorPick(slot: pickIdx)
+                } else if let editIdx = myEditIdx {
+                    confirmName(slot: editIdx)
+                } else {
+                    confirmFocusedMenu()
+                }
+                _ = midClaim
             }
             aWasPressed[id] = aPressed
         }
     }
 
+    // MARK: - Keyboard
+
     private func handleKeyDown(_ code: GCKeyCode) {
-        if activeNameSlot != nil {
+        let kbSlot = manager.slots.first(where: { $0.keyboard != nil })?.index
+        let kbPickIdx: Int? = kbSlot.flatMap { pickingColor[$0] != nil ? $0 : nil }
+        let kbEditIdx: Int? = kbSlot.flatMap { nameEditing[$0] != nil ? $0 : nil }
+
+        // Name-edit on the keyboard player's slot — eats most keys.
+        if let editIdx = kbEditIdx {
             switch code {
             case .returnOrEnter, .keypadEnter:
-                confirmName()
+                confirmName(slot: editIdx)
             case .escape:
-                cancelNameEdit()
+                manager.releaseKeyboardSlot()
             case .deleteOrBackspace:
-                // Direct backspace shortcut — same as cycling to ⌫ and
-                // pressing A. Doesn't disturb the cycler's current char.
-                if cyclerCursor > 0 {
-                    let removeAt = nameBuffer.index(nameBuffer.startIndex, offsetBy: cyclerCursor - 1)
-                    nameBuffer.remove(at: removeAt)
-                    cyclerCursor -= 1
+                if var st = nameEditing[editIdx], st.cursor > 0 {
+                    let removeAt = st.buffer.index(st.buffer.startIndex, offsetBy: st.cursor - 1)
+                    st.buffer.remove(at: removeAt)
+                    st.cursor -= 1
+                    nameEditing[editIdx] = st
                     renderSlots()
                 }
-            case .upArrow:    cycleLiveChar(by:  1)
-            case .downArrow:  cycleLiveChar(by: -1)
-            case .leftArrow:  moveCyclerCursor(by: -1)
-            case .rightArrow: moveCyclerCursor(by:  1)
+            case .upArrow:    cycleLiveChar(slot: editIdx, by:  1)
+            case .downArrow:  cycleLiveChar(slot: editIdx, by: -1)
+            case .leftArrow:  moveCyclerCursor(slot: editIdx, by: -1)
+            case .rightArrow: moveCyclerCursor(slot: editIdx, by:  1)
             default:
-                // Direct typing (hardware keyboard shortcut). Inserts at
-                // cursor and advances; bypasses the cycler entirely.
-                if let ch = TitleScene.charFor(keyCode: code), nameBuffer.count < 8 {
-                    let insertAt = nameBuffer.index(nameBuffer.startIndex, offsetBy: cyclerCursor)
-                    nameBuffer.insert(ch, at: insertAt)
-                    cyclerCursor += 1
+                if let ch = TitleScene.charFor(keyCode: code),
+                   var st = nameEditing[editIdx],
+                   st.buffer.count < 8 {
+                    let insertAt = st.buffer.index(st.buffer.startIndex, offsetBy: st.cursor)
+                    st.buffer.insert(ch, at: insertAt)
+                    st.cursor += 1
+                    nameEditing[editIdx] = st
                     renderSlots()
                 }
             }
             return
         }
 
-        if activeNameSlot == nil {
+        // Color-pick on the keyboard player's slot.
+        if let pickIdx = kbPickIdx {
             switch code {
-            case .upArrow:    moveFocus(by: -1); return
-            case .downArrow:  moveFocus(by:  1); return
-            case .leftArrow:  cycleFocusedHorizontal(by: -1); return
-            case .rightArrow: cycleFocusedHorizontal(by:  1); return
-            case .keyH:       openHelp(); return
-            #if DEBUG
-            case .keyD:       manager.claimDummy(); return
-            #endif
+            case .leftArrow:  cycleColorCandidate(slot: pickIdx, by: -1)
+            case .rightArrow: cycleColorCandidate(slot: pickIdx, by:  1)
+            case .returnOrEnter, .keypadEnter, .keyA, .spacebar:
+                confirmColorPick(slot: pickIdx)
+            case .escape, .keyB:
+                manager.releaseKeyboardSlot()
             default: break
             }
+            return
         }
 
+        // Idle keyboard input — navigate the menu / claim / start. Esc and B
+        // both release the keyboard slot when one exists (B mirrors the MFi
+        // controller's "leave slot" button); Esc with no keyboard player
+        // falls back to exiting Mac fullscreen.
         switch code {
-        case .keyA, .returnOrEnter, .keypadEnter:
-            // Confirm the focused item. Enter is intentionally NOT a
-            // "start game" key here — Space starts; Enter only confirms
-            // the focused selector / slot.
-            confirmFocused()
-        case .spacebar:
-            if focused == .help && activeNameSlot == nil {
-                openHelp()
-            } else {
-                tryStart()
-            }
+        case .upArrow:    moveFocus(by: -1)
+        case .downArrow:  moveFocus(by:  1)
+        case .leftArrow:  cycleFocusedSelector(by: -1)
+        case .rightArrow: cycleFocusedSelector(by:  1)
+        case .keyH:       openHelp()
         case .escape:
-            MacFullScreen.exitIfActive()
-        default:
-            break
+            if manager.hasKeyboardPlayer { manager.releaseKeyboardSlot() }
+            else { MacFullScreen.exitIfActive() }
+        case .keyB:
+            if manager.hasKeyboardPlayer { manager.releaseKeyboardSlot() }
+        case .spacebar:   tryStart()
+        case .returnOrEnter, .keypadEnter, .keyA:
+            if !manager.hasKeyboardPlayer,
+               manager.slots.count < ControllerManager.maxPlayers {
+                _ = manager.claimKeyboard()
+            } else {
+                confirmFocusedMenu()
+            }
+        #if DEBUG
+        case .keyD:       manager.claimDummy()
+        #endif
+        default: break
         }
     }
-
 
     private static func charFor(keyCode code: GCKeyCode) -> Character? {
         switch code {
@@ -853,75 +912,7 @@ final class TitleScene: SKScene {
         }
     }
 
-    private func confirmName() {
-        guard let idx = activeNameSlot else { return }
-        let trimmed = nameBuffer.trimmingCharacters(in: .whitespaces)
-        let previous = UserDefaults.standard.string(forKey: "player_name_\(idx)") ?? "P\(idx + 1)"
-        let name = trimmed.isEmpty ? previous : trimmed
-        UserDefaults.standard.set(name, forKey: "player_name_\(idx)")
-        RecentNames.record(name)
-        closeNameEditor()
-    }
-
-    /// Cancel name editing — discard buffer changes and revert to the
-    /// previously stored name (no UserDefaults write).
-    private func cancelNameEdit() {
-        guard activeNameSlot != nil else { return }
-        closeNameEditor()
-    }
-
-    private func closeNameEditor() {
-        activeNameSlot = nil
-        nameBuffer = ""
-        cyclerCursor = 0
-        cyclerCharIndex = 0
-        let atMax = manager.slots.count >= ControllerManager.maxPlayers
-        manager.setJoinEnabled(!atMax)
-        renderSlots()
-    }
-
-    /// Cycle the live cycler character. +1 advances forward (A→B→...→Z→.→
-    /// →-→SPACE→⌫→A), -1 reverses (A→⌫→SPACE→-→...).
-    private func cycleLiveChar(by delta: Int) {
-        let count = TitleScene.cyclerAlphabetCount
-        cyclerCharIndex = ((cyclerCharIndex + delta) % count + count) % count
-        renderSlots()
-    }
-
-    /// Move the cycler cursor within the buffer. Clamped 0...buffer.count.
-    /// Cursor moves reset the live character to 'A' so each new position
-    /// starts predictably.
-    private func moveCyclerCursor(by delta: Int) {
-        guard activeNameSlot != nil else { return }
-        let target = cyclerCursor + delta
-        cyclerCursor = max(0, min(nameBuffer.count, target))
-        cyclerCharIndex = 0
-        renderSlots()
-    }
-
-    /// Apply the live character at the cursor.
-    /// - Regular char + buffer below cap: insert at cursor, advance cursor.
-    /// - Backspace + cursor > 0: delete char before cursor, move cursor back.
-    /// - At-cap commit: silently no-op.
-    /// In every case the live character resets to 'A'.
-    private func commitLiveChar() {
-        guard activeNameSlot != nil else { return }
-        if cyclerCharIndex == TitleScene.cyclerBackspaceIndex {
-            guard cyclerCursor > 0 else { return }
-            let removeAt = nameBuffer.index(nameBuffer.startIndex, offsetBy: cyclerCursor - 1)
-            nameBuffer.remove(at: removeAt)
-            cyclerCursor -= 1
-        } else {
-            guard nameBuffer.count < 8 else { return }
-            let ch = TitleScene.cyclerAlphabet[cyclerCharIndex]
-            let insertAt = nameBuffer.index(nameBuffer.startIndex, offsetBy: cyclerCursor)
-            nameBuffer.insert(ch, at: insertAt)
-            cyclerCursor += 1
-        }
-        cyclerCharIndex = 0
-        renderSlots()
-    }
-
+    // MARK: - Slot rendering
 
     private func renderSlots() {
         slotsLayer.removeAllChildren()
@@ -939,100 +930,118 @@ final class TitleScene: SKScene {
             let center = CGPoint(x: x, y: y)
             let slot = slotByIndex[i]
             let claimed = slot != nil
-            let color: SKColor = slot?.color ?? SKColor(white: 0.4, alpha: 1)
+            let isPicking = pickingColor[i] != nil
+            let isEditing = nameEditing[i] != nil
+            let ringColor: SKColor = claimed ? (slot?.color ?? TitleScene.unclaimedRingColor)
+                                             : TitleScene.unclaimedRingColor
 
-            let isFocused = focusedSlotIndex() == i
             let tile = SKShapeNode(rectOf: CGSize(width: tileWidth, height: 110), cornerRadius: 8)
             tile.position = center
-            tile.strokeColor = color
+            tile.strokeColor = ringColor
             tile.fillColor = .black
-            tile.lineWidth = isFocused ? 5 : 3
-            if !claimed { tile.name = "joinTile" }
+            tile.lineWidth = isPicking ? 5 : 3
+            tile.name = "slotTile"
             slotsLayer.addChild(tile)
 
-            if isFocused {
-                let ring = SKShapeNode(rectOf: CGSize(width: tileWidth + 8, height: 118),
-                                       cornerRadius: 10)
-                ring.position = center
-                ring.strokeColor = TitleScene.accentGold
-                ring.fillColor = .clear
-                ring.lineWidth = 2
-                slotsLayer.addChild(ring)
-            }
-
             if claimed {
-                let ship = Shapes.shipV(color: color, scale: 1.6)
+                let shipColor = slot?.color ?? TitleScene.accentGold
+                let ship = Shapes.shipV(color: shipColor, scale: 1.6)
                 ship.position = center
                 ship.zRotation = .pi / 2
                 slotsLayer.addChild(ship)
-            } else {
-                let label = SKLabelNode(text: "JOIN")
-                label.fontName = "AvenirNext-Bold"
-                label.fontSize = 16
-                label.fontColor = ControllerManager.playerColors[i]
-                label.position = CGPoint(x: x, y: y - 6)
-                label.name = "joinLabel"
-                slotsLayer.addChild(label)
             }
 
             let storedName = UserDefaults.standard.string(forKey: "player_name_\(i)") ?? "P\(i + 1)"
-            if activeNameSlot == i {
-                renderCyclerEditor(x: x, y: y, color: color, slotIndex: i,
+
+            if isEditing {
+                renderCyclerEditor(x: x, y: y,
+                                   color: slot?.color ?? TitleScene.accentGold,
+                                   slotIndex: i,
                                    isTouchSlot: slot?.touchInput != nil)
+            } else if isPicking {
+                renderColorPickerHint(x: x, y: y, color: slot?.color ?? TitleScene.accentGold)
             } else if claimed {
                 let nameLabel = SKLabelNode(text: storedName)
                 nameLabel.fontName = "AvenirNext-Regular"
                 nameLabel.fontSize = 14
-                nameLabel.fontColor = color
-                nameLabel.position = CGPoint(x: x, y: y - 69)
+                nameLabel.fontColor = ringColor
+                nameLabel.position = CGPoint(x: x, y: y - 79)
                 slotsLayer.addChild(nameLabel)
+            } else {
+                // Unclaimed: stored name on top, JOIN below.
+                let nameLabel = SKLabelNode(text: storedName)
+                nameLabel.fontName = "AvenirNext-Regular"
+                nameLabel.fontSize = 14
+                nameLabel.fontColor = TitleScene.unclaimedRingColor
+                nameLabel.position = CGPoint(x: x, y: y + 4)
+                slotsLayer.addChild(nameLabel)
+
+                let join = SKLabelNode(text: "JOIN")
+                join.fontName = "AvenirNext-Bold"
+                join.fontSize = 16
+                join.fontColor = TitleScene.unclaimedRingColor
+                join.position = CGPoint(x: x, y: y - 18)
+                join.name = "joinLabel"
+                slotsLayer.addChild(join)
             }
         }
-
-        // Slot-preview markers: one chevron per connected unclaimed controller,
-        // sitting on the slot tile that controller would claim if it pressed A.
-        // Multiple unclaimed controllers on the same tile stack vertically.
-        let unclaimed = manager.connectedControllers.filter { manager.slot(for: $0) == nil }
-        var markersOnSlot: [Int: Int] = [:]
-        for (controllerIdx, c) in unclaimed.enumerated() {
-            let slotIdx = manager.intendedSlotIndex(for: c)
-            let placed = markersOnSlot[slotIdx, default: 0]
-            markersOnSlot[slotIdx] = placed + 1
-
-            let tileX = startX + CGFloat(slotIdx) * (tileWidth + spacing)
-            let markerY = y - 50 - CGFloat(placed) * 14
-            let color = ControllerManager.playerColors[slotIdx]
-
-            let marker = SKLabelNode(text: "▲ \(controllerIdx + 1)")
-            marker.fontName = "AvenirNext-Bold"
-            marker.fontSize = 11
-            marker.fontColor = color
-            marker.position = CGPoint(x: tileX, y: markerY)
-            slotsLayer.addChild(marker)
-        }
-
     }
 
-    /// Render the in-tile cycler editor for the slot currently being edited.
-    /// Layout (anchored at slot tile center `(x, y)`):
-    ///   y - 69 :  per-character buffer with the live char in gold at cursor
-    ///   y - 80 :  caret marker (▲) under the cursor position
-    ///   y - 92 :  legend hint
-    ///   y - 110:  touch button row (only when the touch player is editing)
+    /// Hint row inside a color-picking tile: `◀ PICK COLOR ▶`. The ring + ship
+    /// already preview the candidate color, so this is just guidance for the
+    /// player on what the d-pad will do.
+    private func renderColorPickerHint(x: CGFloat, y: CGFloat, color: SKColor) {
+        let leftArrow = SKLabelNode(text: "◀")
+        leftArrow.fontName = "AvenirNext-Bold"
+        leftArrow.fontSize = 14
+        leftArrow.fontColor = TitleScene.accentGold
+        leftArrow.position = CGPoint(x: x - 44, y: y - 75)
+        leftArrow.verticalAlignmentMode = .top
+        slotsLayer.addChild(leftArrow)
+
+        let label = SKLabelNode(text: "PICK COLOR")
+        label.fontName = "AvenirNext-Bold"
+        label.fontSize = 12
+        label.fontColor = color
+        label.position = CGPoint(x: x, y: y - 75)
+        label.verticalAlignmentMode = .top
+        slotsLayer.addChild(label)
+
+        let rightArrow = SKLabelNode(text: "▶")
+        rightArrow.fontName = "AvenirNext-Bold"
+        rightArrow.fontSize = 14
+        rightArrow.fontColor = TitleScene.accentGold
+        rightArrow.position = CGPoint(x: x + 44, y: y - 75)
+        rightArrow.verticalAlignmentMode = .top
+        slotsLayer.addChild(rightArrow)
+
+        let hint = SKLabelNode(text: "A ACCEPT  B CANCEL")
+        hint.fontName = "AvenirNext-Regular"
+        hint.fontSize = 8
+        hint.fontColor = SKColor(white: 0.55, alpha: 1)
+        hint.position = CGPoint(x: x, y: y - 104)
+        hint.verticalAlignmentMode = .top
+        slotsLayer.addChild(hint)
+    }
+
+    /// Render the in-tile cycler editor for the slot currently editing its
+    /// name. Layout (anchored at slot tile center `(x, y)`):
+    ///   y - 79 :  per-character buffer with the live char in gold at cursor
+    ///   y - 92 :  caret marker (▲) under the cursor position
+    ///   y - 104:  legend hint
+    ///   y - 120:  touch button row (only when the touch player is editing)
     private func renderCyclerEditor(x: CGFloat, y: CGFloat, color: SKColor,
                                     slotIndex: Int, isTouchSlot: Bool) {
-        let bufferChars = Array(nameBuffer)
-        let liveChar = TitleScene.cyclerAlphabet[cyclerCharIndex]
+        guard let st = nameEditing[slotIndex] else { return }
+        let bufferChars = Array(st.buffer)
+        let liveChar = TitleScene.cyclerAlphabet[st.charIndex]
 
-        // Build the visible string: buffer with live char inserted at cursor.
         var displayChars: [Character] = []
-        let cursor = max(0, min(bufferChars.count, cyclerCursor))
+        let cursor = max(0, min(bufferChars.count, st.cursor))
         displayChars.append(contentsOf: bufferChars.prefix(cursor))
         displayChars.append(liveChar)
         displayChars.append(contentsOf: bufferChars.dropFirst(cursor))
 
-        // Lay out characters with fixed advance so the caret aligns under
-        // the live position regardless of glyph width.
         let advance: CGFloat = 11
         let totalWidth = CGFloat(displayChars.count - 1) * advance
         let startX = x - totalWidth / 2
@@ -1041,33 +1050,29 @@ final class TitleScene: SKScene {
             lbl.fontName = "AvenirNext-Bold"
             lbl.fontSize = 16
             lbl.fontColor = idx == cursor ? TitleScene.accentGold : color
-            lbl.position = CGPoint(x: startX + CGFloat(idx) * advance, y: y - 69)
+            lbl.position = CGPoint(x: startX + CGFloat(idx) * advance, y: y - 79)
             slotsLayer.addChild(lbl)
         }
 
-        // Caret (▲) under the live char.
         let caret = SKLabelNode(text: "▲")
         caret.fontName = "AvenirNext-Bold"
         caret.fontSize = 9
         caret.fontColor = TitleScene.accentGold
-        caret.position = CGPoint(x: startX + CGFloat(cursor) * advance, y: y - 82)
+        caret.position = CGPoint(x: startX + CGFloat(cursor) * advance, y: y - 92)
         slotsLayer.addChild(caret)
 
-        // Legend hint — abbreviated, fits under the caret.
-        let hint = SKLabelNode(text: "↑↓ CYCLE  ◀▶ MOVE")
+        let hint = SKLabelNode(text: "↑↓ CYCLE  ◀▶ MOVE  X TYPE  A DONE")
         hint.fontName = "AvenirNext-Regular"
         hint.fontSize = 8
         hint.fontColor = SKColor(white: 0.55, alpha: 1)
-        hint.position = CGPoint(x: x, y: y - 94)
+        hint.position = CGPoint(x: x, y: y - 104)
         slotsLayer.addChild(hint)
 
         if isTouchSlot {
-            renderCyclerTouchButtons(centerX: x, baseY: y - 110, slotIndex: slotIndex)
+            renderCyclerTouchButtons(centerX: x, baseY: y - 120, slotIndex: slotIndex)
         }
     }
 
-    /// Touch button row beneath the editing tile. Six buttons:
-    /// `◀ ↑ ↓ ▶ ⌫ ✓`. Hit-tested in `handleTouchTap`.
     private func renderCyclerTouchButtons(centerX: CGFloat, baseY: CGFloat,
                                           slotIndex: Int) {
         let labels: [(Character, String)] = [
@@ -1100,7 +1105,10 @@ final class TitleScene: SKScene {
             lbl.position = CGPoint(x: bx, y: baseY)
             slotsLayer.addChild(lbl)
         }
+        _ = slotIndex
     }
+
+    // MARK: - Selector rendering / cycling
 
     private func renderSelectors() {
         let active   = TitleScene.accentGold
@@ -1119,15 +1127,11 @@ final class TitleScene: SKScene {
         audioLabel.fontColor = focused == .audio ? active : inactive
 
         helpLabel.fontColor = focused == .help ? active : inactive
-
         joinHintLabel.fontColor = focused == .start ? active : .white
-
-        let editing = editingSelector
-        let editingScale: CGFloat = 1.3
 
         func style(_ arrow: SKLabelNode, item: FocusItem) {
             arrow.fontColor = focused == item ? active : inactive
-            arrow.setScale((focused == item && editing) ? editingScale : 1.0)
+            arrow.setScale(1.0)
         }
         style(modeLeftArrow,    item: .mode)
         style(modeRightArrow,   item: .mode)
@@ -1137,154 +1141,18 @@ final class TitleScene: SKScene {
         style(densityRightArrow,item: .density)
         style(audioLeftArrow,   item: .audio)
         style(audioRightArrow,  item: .audio)
-
-        // Hint stays hidden by default; flashBattleHint() shows it briefly
-        // when the player tries to start BATTLE without enough slots claimed.
     }
 
-    private func cycleMode(by delta: Int) {
-        selectedMode = (selectedMode == .survival) ? .battle : .survival
-        renderSelectors()
-    }
-
-    private func flashJoinSlots() {
-        let labelPulse = SKAction.sequence([
-            .group([
-                .scale(to: 1.25, duration: 0.14),
-                .colorize(with: .white, colorBlendFactor: 1.0, duration: 0.14)
-            ]),
-            .group([
-                .scale(to: 1.0, duration: 0.32),
-                .colorize(withColorBlendFactor: 0.0, duration: 0.32)
-            ])
-        ])
-        let tilePulse = SKAction.sequence([
-            .scale(to: 1.06, duration: 0.14),
-            .scale(to: 1.0,  duration: 0.32)
-        ])
-        for node in slotsLayer.children {
-            switch node.name {
-            case "joinLabel":
-                node.removeAllActions()
-                node.setScale(1.0)
-                node.run(labelPulse)
-            case "joinTile":
-                node.removeAllActions()
-                node.setScale(1.0)
-                node.run(tilePulse)
-            default:
-                break
-            }
-        }
-    }
-
-    private func flashBattleHint() {
-        battleHintLabel.removeAllActions()
-        battleHintLabel.alpha = 1
-        let pulse = SKAction.sequence([
-            .group([
-                .scale(to: 1.15, duration: 0.12),
-                .colorize(with: SKColor(red: 1.0, green: 0.65, blue: 0.65, alpha: 1),
-                          colorBlendFactor: 1.0, duration: 0.12)
-            ]),
-            .group([
-                .scale(to: 1.0,  duration: 0.18),
-                .colorize(with: SKColor(red: 0.7, green: 0.4, blue: 0.4, alpha: 1),
-                          colorBlendFactor: 0.0, duration: 0.18)
-            ]),
-            .wait(forDuration: 1.2),
-            .fadeOut(withDuration: 0.4),
-        ])
-        battleHintLabel.run(pulse)
-    }
-
-    /// Vertical navigation.
-    /// - On a slot tile: down → start (the action), up → mode (the settings
-    ///   entry point).
-    /// - In the selector column: up/down moves through the list. Mode-up
-    ///   returns to the slot you came from; start-up → help.
-    /// - While editing a selector: up/down is ignored — A exits edit mode.
-    private func moveFocus(by delta: Int) {
-        if editingSelector { return }
-        switch focused {
-        case .slot0, .slot1, .slot2, .slot3:
-            focused = (delta > 0) ? .start : .mode
-        case .mode:
-            if delta < 0 { focused = lastSlotFocus() }
-            else { focused = .level }
-        case .level:
-            focused = (delta < 0) ? .mode : .density
-        case .density:
-            focused = (delta < 0) ? .level : .audio
-        case .audio:
-            focused = (delta < 0) ? .density : .help
-        case .help:
-            focused = (delta < 0) ? .audio : .start
-        case .start:
-            if delta < 0 { focused = .help }
-        }
-        renderSelectors()
-        renderSlots()
-    }
-
-    /// When up-arrowing from the selector column, snap to the slot row,
-    /// preferring the slot index that the actor (or the most recent action)
-    /// last touched. Falls back to slot 0.
-    private func lastSlotFocus() -> FocusItem {
-        switch lastSlotFocusIndex {
-        case 1: return .slot1
-        case 2: return .slot2
-        case 3: return .slot3
-        default: return .slot0
-        }
-    }
-
-    /// Horizontal navigation.
-    /// - While editing a selector: left/right cycles its value.
-    /// - Slot row: moves between tiles (clamped). Slot 3 right exits to the
-    ///   audio selector (rightmost slot is adjacent to the selector column).
-    /// - Selector / help / start: left exits the column to slot 3 (P4),
-    ///   right is a no-op.
-    private func cycleFocusedHorizontal(by delta: Int) {
-        if editingSelector {
-            cycleFocusedSelectorValue(by: delta)
-            return
-        }
-        switch focused {
-        case .slot0:
-            if delta > 0 { setSlotFocus(1) }
-        case .slot1:
-            setSlotFocus(delta > 0 ? 2 : 0)
-        case .slot2:
-            setSlotFocus(delta > 0 ? 3 : 1)
-        case .slot3:
-            if delta < 0 { setSlotFocus(2) }
-            else {
-                focused = .audio
-                editingSelector = false
-                renderSelectors()
-                renderSlots()
-            }
-        case .mode, .level, .density, .audio, .help, .start:
-            if delta < 0 { setSlotFocus(3) }
-        }
-    }
-
-    /// Cycle the value of whichever selector is currently focused. Called
-    /// from edit mode and from direct touch gestures (arrow taps, swipes).
-    private func cycleFocusedSelectorValue(by delta: Int) {
+    private func cycleFocusedSelector(by delta: Int) {
         switch focused {
         case .mode:    cycleMode(by: delta)
         case .level:   cycleLevel(by: delta)
         case .density: cycleDensity(by: delta)
         case .audio:   cycleAudio(by: delta)
-        default: break
+        case .help, .start: break
         }
     }
 
-    /// Cycle the value of a specific selector (used for touch hits/swipes
-    /// where the gesture's start point identifies the selector regardless
-    /// of current focus).
     private func cycleSelectorValue(_ item: FocusItem, by delta: Int) {
         switch item {
         case .mode:    cycleMode(by: delta)
@@ -1295,100 +1163,10 @@ final class TitleScene: SKScene {
         }
     }
 
-    private func setSlotFocus(_ index: Int) {
-        switch index {
-        case 0: focused = .slot0
-        case 1: focused = .slot1
-        case 2: focused = .slot2
-        case 3: focused = .slot3
-        default: return
-        }
-        lastSlotFocusIndex = index
-        editingSelector = false
+    private func cycleMode(by delta: Int) {
+        selectedMode = (selectedMode == .survival) ? .battle : .survival
+        _ = delta
         renderSelectors()
-        renderSlots()
-    }
-
-    /// For unclaimed controllers, keep the per-controller intendedSlot
-    /// aligned with the shared focus when focus is on a slot — so the preview
-    /// triangle and the upcoming claim agree.
-    private func syncIntendedSlot(controller: GCController) {
-        guard manager.slot(for: controller) == nil,
-              let idx = focusedSlotIndex() else { return }
-        manager.setIntendedSlotIndex(idx, for: controller)
-    }
-
-    private func focusedSlotIndex() -> Int? {
-        switch focused {
-        case .slot0: return 0
-        case .slot1: return 1
-        case .slot2: return 2
-        case .slot3: return 3
-        default: return nil
-        }
-    }
-
-    /// Confirm the current focus.
-    ///
-    /// `controller` is the gamepad that triggered the confirmation, or `nil`
-    /// for keyboard-driven activation. Slot focus delegates to
-    /// `confirmSlotFocus` so the action depends on who pressed and what's
-    /// already in that tile.
-    private func confirmFocused(byController controller: GCController? = nil) {
-        switch focused {
-        case .slot0: confirmSlotFocus(0, controller: controller)
-        case .slot1: confirmSlotFocus(1, controller: controller)
-        case .slot2: confirmSlotFocus(2, controller: controller)
-        case .slot3: confirmSlotFocus(3, controller: controller)
-        case .mode, .level, .density, .audio:
-            // Toggle edit mode for the focused selector. While editing,
-            // left/right cycles the value; A again exits.
-            editingSelector.toggle()
-            renderSelectors()
-        case .start:   tryStart()
-        case .help:    openHelp()
-        }
-    }
-
-    /// Slot tile activated.
-    ///
-    /// - Controller, unclaimed → claim this empty slot (no-op if claimed).
-    /// - Controller, claimed at this slot → re-edit the player name.
-    /// - Controller, claimed elsewhere → ignored.
-    /// - Keyboard, unclaimed → claim this empty slot for the keyboard.
-    /// - Keyboard, claimed at this slot → re-edit the player name.
-    /// - Keyboard, claimed elsewhere → ignored.
-    private func confirmSlotFocus(_ slotIndex: Int, controller: GCController?) {
-        guard activeNameSlot == nil else { return }
-        if let c = controller {
-            if let mySlot = manager.slot(for: c) {
-                if mySlot.index == slotIndex {
-                    openNameEditor(forSlot: slotIndex)
-                }
-            } else if manager.emptySlotIndices().contains(slotIndex) {
-                manager.claim(controller: c, atSlot: slotIndex)
-            }
-        } else {
-            // Keyboard-driven confirm.
-            if let kbSlotIndex = manager.slots.firstIndex(where: { $0.keyboard != nil }),
-               manager.slots[kbSlotIndex].index == slotIndex {
-                openNameEditor(forSlot: slotIndex)
-            } else if !manager.hasKeyboardPlayer,
-                      manager.emptySlotIndices().contains(slotIndex) {
-                manager.claimKeyboard(atSlot: slotIndex)
-            }
-        }
-    }
-
-    private func openNameEditor(forSlot idx: Int) {
-        let current = UserDefaults.standard.string(forKey: "player_name_\(idx)") ?? "P\(idx + 1)"
-        let trimmed = String(current.uppercased().prefix(8))
-        activeNameSlot = idx
-        nameBuffer = trimmed
-        cyclerCursor = trimmed.count
-        cyclerCharIndex = 0
-        manager.setJoinEnabled(false)
-        renderSlots()
     }
 
     private func cycleAudio(by delta: Int) {
@@ -1398,8 +1176,6 @@ final class TitleScene: SKScene {
         if next != i {
             selectedAudio = cases[next]
             GameSettings.audioMode = selectedAudio
-            // React immediately: switch the title music on/off so the
-            // selector feels live.
             if selectedAudio == .music {
                 MusicPlayer.shared.play(resource: "rivers", ext: "m4a", volume: 0.6)
             } else {
@@ -1426,5 +1202,95 @@ final class TitleScene: SKScene {
         if next > 9 { next = 1 }
         selectedLevel = next
         renderSelectors()
+    }
+
+    // MARK: - Menu focus navigation
+
+    private func moveFocus(by delta: Int) {
+        let order: [FocusItem] = [.mode, .level, .density, .audio, .help, .start]
+        guard let i = order.firstIndex(of: focused) else {
+            focused = .start
+            renderSelectors()
+            return
+        }
+        let next = max(0, min(order.count - 1, i + delta))
+        if next != i {
+            focused = order[next]
+            renderSelectors()
+        }
+    }
+
+    /// A on a fully-claimed-idle controller (or on keyboard at idle) confirms
+    /// whatever the menu focus is. Selectors are no-ops since ◀▶ cycles them
+    /// directly; help/start trigger their actions.
+    private func confirmFocusedMenu() {
+        switch focused {
+        case .help:  openHelp()
+        case .start: tryStart()
+        case .mode, .level, .density, .audio: break
+        }
+    }
+
+    // MARK: - Flashes
+
+    private func flashJoinSlots() {
+        let labelPulse = SKAction.sequence([
+            .group([
+                .scale(to: 1.25, duration: 0.14),
+                .colorize(with: .white, colorBlendFactor: 1.0, duration: 0.14)
+            ]),
+            .group([
+                .scale(to: 1.0, duration: 0.32),
+                .colorize(withColorBlendFactor: 0.0, duration: 0.32)
+            ])
+        ])
+        let tilePulse = SKAction.sequence([
+            .scale(to: 1.06, duration: 0.14),
+            .scale(to: 1.0,  duration: 0.32)
+        ])
+        for node in slotsLayer.children {
+            switch node.name {
+            case "joinLabel":
+                node.removeAllActions()
+                node.setScale(1.0)
+                node.run(labelPulse)
+            case "slotTile":
+                node.removeAllActions()
+                node.setScale(1.0)
+                node.run(tilePulse)
+            default:
+                break
+            }
+        }
+    }
+
+    private func flashBattleHint() {
+        battleHintLabel.removeAllActions()
+        battleHintLabel.alpha = 1
+        let pulse = SKAction.sequence([
+            .group([
+                .scale(to: 1.15, duration: 0.12),
+                .colorize(with: SKColor(red: 1.0, green: 0.7, blue: 0.7, alpha: 1),
+                          colorBlendFactor: 1.0, duration: 0.12)
+            ]),
+            .group([
+                .scale(to: 1.0,  duration: 0.18),
+                .colorize(with: SKColor(red: 0.85, green: 0.45, blue: 0.45, alpha: 1),
+                          colorBlendFactor: 0.0, duration: 0.18)
+            ]),
+            .wait(forDuration: 1.2),
+            .fadeOut(withDuration: 0.4),
+        ])
+        battleHintLabel.run(pulse)
+
+        let tilePulse = SKAction.sequence([
+            .scale(to: 1.06, duration: 0.14),
+            .scale(to: 1.0,  duration: 0.32)
+        ])
+        for node in slotsLayer.children where node.name == "slotTile" {
+            node.removeAllActions()
+            node.setScale(1.0)
+            node.run(tilePulse)
+        }
     }
 }

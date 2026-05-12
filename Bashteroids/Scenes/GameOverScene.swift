@@ -15,7 +15,7 @@ final class GameOverScene: SKScene {
     private let density: PowerUpDensity
     private let manager = ControllerManager.shared
     private var transitioning = false
-    private var prevButtonState: [ObjectIdentifier: (menu: Bool, a: Bool, x: Bool)] = [:]
+    private var prevButtonState: [ObjectIdentifier: (menu: Bool, a: Bool, b: Bool, x: Bool, y: Bool)] = [:]
 
     /// First confirm-press in a non-NORMAL survival run plays the score-reveal
     /// animation; subsequent confirm-presses replay. NORMAL density and the
@@ -138,7 +138,7 @@ final class GameOverScene: SKScene {
         addChild(levelL)
 
         let hasHardwareKeyboard = GCKeyboard.coalesced != nil
-        let replayText = hasHardwareKeyboard ? "[R] PLAY AGAIN" : "PLAY AGAIN"
+        let replayText = hasHardwareKeyboard ? "[R] PLAY AGAIN" : "[X] PLAY AGAIN"
         let hint = SKLabelNode(text: replayText)
         hint.fontName = "AvenirNext-Bold"
         hint.fontSize = 18
@@ -199,33 +199,40 @@ final class GameOverScene: SKScene {
             let a    = c.extendedGamepad?.buttonA.isPressed
                     ?? c.microGamepad?.buttonA.isPressed
                     ?? false
+            let b    = c.extendedGamepad?.buttonB.isPressed ?? false
             let x    = c.extendedGamepad?.buttonX.isPressed
                     ?? c.microGamepad?.buttonX.isPressed
                     ?? false
+            let y    = c.extendedGamepad?.buttonY.isPressed ?? false
             let id = ObjectIdentifier(c)
-            let prev = prevButtonState[id] ?? (menu: false, a: false, x: false)
+            let prev = prevButtonState[id] ?? (menu: false, a: false, b: false, x: false, y: false)
+
+            let anyRising = (a && !prev.a) || (b && !prev.b) || (x && !prev.x)
+                         || (y && !prev.y) || (menu && !prev.menu)
 
             // Awaiting reveal: any press plays the score-reveal animation.
-            // After reveal: only A replays; every other button returns to
-            // the title scene.
+            // After reveal: X / Menu (the "begin game" buttons from the title
+            // screen) replay; every other button returns to title — matching
+            // the title screen's convention where X/Menu is the universal
+            // start shortcut.
             if revealState == .awaitingReveal {
-                if (a && !prev.a) || (x && !prev.x) || (menu && !prev.menu) {
+                if anyRising {
                     playRevealAnimation()
                     revealState = .awaitingDismiss
-                    prevButtonState[id] = (menu, a, x)
+                    prevButtonState[id] = (menu, a, b, x, y)
                     break
                 }
             } else {
-                if a && !prev.a {
+                if (x && !prev.x) || (menu && !prev.menu) {
                     handleReplayPress()
                     break
                 }
-                if (x && !prev.x) || (menu && !prev.menu) {
+                if (a && !prev.a) || (b && !prev.b) || (y && !prev.y) {
                     returnToTitle()
                     break
                 }
             }
-            prevButtonState[id] = (menu, a, x)
+            prevButtonState[id] = (menu, a, b, x, y)
         }
     }
 
