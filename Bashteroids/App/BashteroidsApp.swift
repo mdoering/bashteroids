@@ -4,10 +4,22 @@ import SwiftUI
 struct BashteroidsApp: App {
     var body: some Scene {
         WindowGroup {
-            GameContainerView()
-                .ignoresSafeArea()
-                .statusBarHidden()
-                .persistentSystemOverlays(.hidden)
+            gameView
         }
+    }
+
+    @ViewBuilder
+    private var gameView: some View {
+        #if targetEnvironment(macCatalyst)
+        GameContainerView()
+        #elseif os(iOS)
+        GameContainerView()
+            .ignoresSafeArea()
+            .statusBarHidden()
+            .persistentSystemOverlays(.hidden)
+        #else
+        GameContainerView()
+            .ignoresSafeArea()
+        #endif
     }
 }

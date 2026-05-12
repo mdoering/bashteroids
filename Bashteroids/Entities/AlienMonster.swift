@@ -10,11 +10,13 @@ final class AlienMonster: Entity {
     static let shootIntervalMax: CGFloat      = 3.5
     static let shootRange:       CGFloat      = 200
     static let laserMaxDistance: CGFloat      = 140
+    static let bulletHitsToKill: Int          = 2
 
     let node: SKNode
     var velocity: CGPoint = .zero
     let radius: CGFloat   = collisionRadius
     var alive:  Bool      = true
+    private(set) var hitsRemaining: Int = bulletHitsToKill
 
     private let baseHeading: CGFloat
     private var driftPhase:  CGFloat
@@ -44,6 +46,17 @@ final class AlienMonster: Entity {
     }
 
     var fireReady: Bool { alive && shootCooldown <= 0 }
+
+    /// Apply a bullet hit. Returns true when the monster has run out of HP.
+    @discardableResult
+    func registerBulletHit() -> Bool {
+        hitsRemaining -= 1
+        node.run(.sequence([
+            .fadeAlpha(to: 0.3, duration: 0.04),
+            .fadeAlpha(to: 1.0, duration: 0.10)
+        ]))
+        return hitsRemaining <= 0
+    }
 
     func fire(at target: CGPoint) -> Bullet {
         let aim       = (target - position).normalized()

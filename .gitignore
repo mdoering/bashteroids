@@ -67,3 +67,12 @@ fastlane/test_output
 # Xcode build outputs (in case derived-data is redirected into the repo)
 DerivedData/
 build/
+
+# Audio source projects (GarageBand projects, downloaded loops, draft tracks).
+# The bundled music that the app actually plays lives in
+# Bashteroids/Audio/Resources/ and IS tracked. The `audio/` folder here is
+# ~250 MB of working files only the author needs locally.
+audio/
+
+# Scratch notes that aren't worth versioning.
+improvements.md
