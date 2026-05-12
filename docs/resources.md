@@ -1,3 +1,7 @@
+---
+title: Development resources
+---
+
 # bashteroids development resource
 
 AppIcon Generator:

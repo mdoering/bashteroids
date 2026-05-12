@@ -1,0 +1,19 @@
+title: Bashteroids
+description: Vector-arcade couch co-op for iPad, Mac, and Apple TV.
+theme: jekyll-theme-hacker
+
+# Apply the theme's default layout to every page (markdown + html alike) so the
+# privacy policy and any future docs render with the same look. privacy.html
+# overrides this back to no layout in its own front matter so its self-contained
+# HTML isn't double-wrapped.
+defaults:
+  - scope:
+      path: ""
+      type: pages
+    values:
+      layout: default
+
+# Internal planning docs aren't worth publishing on the docs site, but we want
+# them in the repo. Skip the whole tree from the Jekyll build.
+exclude:
+  - superpowers/

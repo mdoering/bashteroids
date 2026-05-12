@@ -1,3 +1,7 @@
+---
+title: Game specs
+---
+
 # Bashteroids Game
 An old school simple vector style game in the tradition of Asteroids.
 Played by a single or multiple users, each controlling a simple V shaped space ship that can fire its gun from the front.
